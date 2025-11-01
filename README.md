@@ -12,21 +12,24 @@ Plataforma de cursos em vídeo desenvolvida com Django + Django REST Framework.
 - **Containerization**: Docker + Docker Compose
 
 ## 📁 Estrutura do Projeto
+
+```
 wss-backend-v0/
-├── backend/ # Aplicação Django
-│ ├── apps/ # Apps modulares
-│ │ ├── users/ # Gestão de usuários
-│ │ ├── courses/ # Gestão de cursos
-│ │ ├── videos/ # Gestão de vídeos
-│ │ ├── enrollments/ # Matrículas e progresso
-│ │ └── core/ # Utilidades compartilhadas
-│ ├── config/ # Configurações Django
-│ │ └── settings/ # Settings por ambiente
-│ ├── requirements.txt # Dependências Python
-│ └── Dockerfile # Imagem Docker
-├── docker-compose.yml # Orquestração de containers
-├── .env.example # Template de variáveis de ambiente
+├── backend/                # Aplicação Django
+│   ├── apps/              # Apps modulares
+│   │   ├── users/         # Gestão de usuários
+│   │   ├── courses/       # Gestão de cursos
+│   │   ├── videos/        # Gestão de vídeos
+│   │   ├── enrollments/   # Matrículas e progresso
+│   │   └── core/          # Utilidades compartilhadas
+│   ├── config/            # Configurações Django
+│   │   └── settings/      # Settings por ambiente
+│   ├── requirements.txt   # Dependências Python
+│   └── Dockerfile         # Imagem Docker
+├── docker-compose.yml     # Orquestração de containers
+├── .env.example           # Template de variáveis de ambiente
 └── README.md
+```
 
 
 ## 🛠️ Setup Local

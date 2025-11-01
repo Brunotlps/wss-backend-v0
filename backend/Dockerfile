@@ -76,6 +76,7 @@ RUN apt-get update && apt-get install -y \
     gcc \
     libjpeg-dev \
     zlib1g-dev \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 
 # Copia o arquivo de requirements
@@ -94,3 +95,9 @@ EXPOSE 8000
 # Comando padrão (será sobrescrito pelo docker-compose)
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Set entrypoint
+ENTRYPOINT ["/entrypoint.sh"]

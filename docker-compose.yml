@@ -25,17 +25,20 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=${DB_NAME}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
-  
+    networks:
+      - backend_network
+    restart: unless-stopped
+
   # Redis (Cache & Celery Broker)
   redis:
     image: redis:7-alpine
@@ -47,6 +50,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - backend_network
+    restart: unless-stopped
   
   # Django Backend
   backend:
@@ -54,33 +60,39 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: wss_backend
-    command: python manage.py runserver 0.0.0.0:8000
+    # command: python manage.py runserver 
     volumes:
       - ./backend:/app
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     environment:
-      - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}
-      - SECRET_KEY=${SECRET_KEY}
-      - DEBUG=${DEBUG}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS}
-      - DB_ENGINE=${DB_ENGINE}
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_HOST=${REDIS_HOST}
-      - REDIS_PORT=${REDIS_PORT}
+      - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.development}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python manage.py check --database default || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - backend_network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
   
   # Celery Worker (Async Tasks)
   celery:
@@ -92,24 +104,19 @@ services:
     volumes:
       - ./backend:/app
       - media_volume:/app/media
-    environment:
-      - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}
-      - SECRET_KEY=${SECRET_KEY}
-      - DB_ENGINE=${DB_ENGINE}
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DATABASE_URL=${DATABASE_URL}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    env_file:
+      - .env
     depends_on:
-      - db
-      - redis
-      - backend
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - backend_network
     restart: unless-stopped
-
+    
   # Celery Beat (Scheduled Tasks)
   celery-beat:
     build:
@@ -119,25 +126,29 @@ services:
     command: celery -A config beat -l info
     volumes:
       - ./backend:/app
-    environment:
-      - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE}
-      - SECRET_KEY=${SECRET_KEY}
-      - DB_ENGINE=${DB_ENGINE}
-      - DB_NAME=${DB_NAME}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
-      - DATABASE_URL=${DATABASE_URL}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    env_file:
+      - .env
     depends_on:
-      - db
-      - redis
-      - backend
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - backend_network
     restart: unless-stopped
+    profiles:
+      - production
+      - full
+      
+    
 
 volumes:
   postgres_data:
   static_volume:
   media_volume:
+
+networks:
+  backend_network:
+    driver: bridge

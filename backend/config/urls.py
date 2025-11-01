@@ -36,7 +36,6 @@ urlpatterns = [
    
     # Health Check
     path('api/health/', health_check, name='health-check'),
-    
     # Django Admin
     path('admin/', admin.site.urls),
 
