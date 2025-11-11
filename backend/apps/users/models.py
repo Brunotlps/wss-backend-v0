@@ -60,6 +60,9 @@ class User(AbstractUser, TimeStampedModel):
     help_text=('Optional contact phone number.')
   )
 
+  USERNAME_FIELD = 'email'
+  REQUIRED_FIELDS = ['username']
+
 
   class Meta:
       verbose_name = _('user')
@@ -81,6 +84,16 @@ class User(AbstractUser, TimeStampedModel):
   def get_short_name(self):
       """Return the user's first name or username."""
       return self.first_name or self.username
+  
+  @property
+  def bio(self):
+    """Shortcut to profile bio."""
+    return getattr(self.profile, 'bio', '')
+    
+  @property
+  def avatar(self):
+      """Shortcut to profile avatar."""
+      return getattr(self.profile, 'avatar', None)
   
 class Profile(TimeStampedModel):
     """
