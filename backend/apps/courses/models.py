@@ -36,7 +36,6 @@ class Category(TimeStampedModel):
         is_active (BooleanField): Whether this category is visible to users.
     
     Notes:
-        - slug is used for URLs: /courses/category/web-development/
         - Use Django signals or admin save() to auto-generate slug from name
   """
 

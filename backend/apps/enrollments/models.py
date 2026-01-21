@@ -50,7 +50,7 @@ class Enrollment(TimeStampedModel):
   Notes:
     - user + course must be unique (can't enroll twice in same course)
     - Use signals to auto-mark completed when all lessons are done
-    - certi'ficate_issued triggers certificate generation task
+    - certificate_issued triggers certificate generation task
   """
   
   user = models.ForeignKey(
