@@ -157,5 +157,69 @@ class VideoSerializer(serializers.ModelSerializer):
     return super().update(instance, validated_data)  
 
 
+class VideoListSerializer(serializers.ModelSerializer):
+    """
+    Minimal video serializer for list views and nested relationships.
+    
+    Used when displaying videos in lists or as part of another resource (Lesson)
+    without loading full video details.
+    
+    Fields:
+        - id: Video identifier
+        - title: Video title
+        - duration_formatted: Human-readable duration (HH:MM:SS)
+        - thumbnail: Preview image URL
+    """
+    
+
+    duration_formatted = serializers.CharField(source='duration_formatted', read_only=True)
+
+    class Meta:
+      model = Video
+      fields = [
+        'id',
+        'title', 
+        'duration_formatted',
+        'thumbnail'
+      ]
 
 
+class LessonListSerializer(serializers.ModelSerializer):
+  """
+  Minimal lesson serializer for list views.
+  
+  Shows essential lesson information for displaying in course content lists.
+  Includes course title and video thumbnail without loading full related objects.
+  
+  Fields:
+      - id: Lesson identifier
+      - title: Lesson title
+      - order: Position in the course sequence
+      - course_title: Name of the course this lesson belongs to
+      - duration_formatted: Human-readable duration (e.g., "45min", "1h 30min")
+      - is_free_preview: Whether non-enrolled users can watch
+      - video_thumbnail: Preview image from the associated video
+  """
+  
+  
+  course_title = serializers.CharField(source='course.title', read_only=True)
+  
+  duration_formatted = serializers.CharField(source='duration_formatted', read_only=True)
+  
+  video_thumbnail = serializers.ImageField(
+    source='video.thumbnail',  
+    read_only=True,
+    allow_null=True  
+  )
+  
+  class Meta:
+    model = Lesson
+    fields = [
+      'id',
+      'title',
+      'order',
+      'course_title',     
+      'duration_formatted',  
+      'is_free_preview',
+      'video_thumbnail'   
+    ]
