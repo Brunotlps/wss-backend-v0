@@ -306,3 +306,97 @@ class LessonDetailSerializer(serializers.ModelSerializer):
     if previous_lesson:
       return LessonListSerializer(previous_lesson).data
     return None
+  
+
+class LessonCreateSerializer(serializers.ModelSerializer):
+  """
+  Serializer for creating new lessons.
+  
+  Enforces business rules and data integrity constraints:
+  - User can only create lessons in their own courses
+  - Order must be unique within the course
+  - Video can only be used in one lesson (OneToOneField constraint)
+  
+  Validations:
+  - Ownership: course.instructor must match request.user
+  - unique_together: [course, order] must be unique
+  - OneToOne: video must not already have a lesson
+  """
+
+
+  class Meta:
+    model = Lesson
+    fields = [
+      'title', 'course', 'video', 'order',
+      'description', 'is_free_preview', 'duration'      
+    ]
+  
+
+  def validate_video(self, value):
+    """
+    Validate video is not already used in another lesson.
+    
+    OneToOneField constraint: a video can only belong to one lesson.
+    
+    Args:
+        value (Video): The video instance
+        
+    Returns:
+        Video: Validated video instance
+        
+    Raises:
+        ValidationError: If video is already associated with a lesson
+    """
+
+
+    if hasattr(value, 'lesson'):
+      raise serializers.ValidationError(
+        f"This video is already associated with lesson: {value.lesson.title}"
+      )
+    
+    return value
+  
+  def validate(self, data):
+    """
+    Validate combined field constraints.
+
+    Checks:
+    1. Ownership: User can only create lessons in their own courses
+    2. unique_together: [course, order] must be unique
+
+    Args:
+        data (dict): Validated field data
+
+    Returns:
+        dict: Validated data
+
+    Raises:
+        ValidationError: If ownership or uniqueness constraints fail
+    """
+
+    # Validate ownership: user can only create lessons in their own courses
+    request = self.context.get('request')
+    course = data.get('course')
+    
+    if request and course:
+      if not hasattr(request, 'user') or not request.user.is_authenticated:
+        raise serializers.ValidationError(
+          "Authentication required to create lessons."
+        )
+      
+      if course.instructor != request.user:
+        raise serializers.ValidationError({
+          'course': f"You can only create lessons in your own courses. This course belongs to {course.instructor.get_full_name() or course.instructor.username}."
+        })
+    
+    # Validate unique_together: [course, order] must be unique
+    order = data.get('order')
+    if course and order is not None:
+      if Lesson.objects.filter(course=course, order=order).exists():
+        raise serializers.ValidationError({
+            'order': f"A lesson with order {order} already exists in this course. Please choose a different order number."
+        })
+    
+    return data
+
+    
