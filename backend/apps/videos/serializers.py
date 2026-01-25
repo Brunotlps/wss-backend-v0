@@ -223,3 +223,86 @@ class LessonListSerializer(serializers.ModelSerializer):
       'is_free_preview',
       'video_thumbnail'   
     ]
+
+
+class LessonDetailSerializer(serializers.ModelSerializer):
+  """
+  Detailed lesson serializer for individual lesson views.
+  
+  Provides comprehensive lesson information including full video details
+  and navigation to adjacent lessons in the course.
+  
+  Features:
+      - Complete lesson information (title, description, duration, order)
+      - Nested video details using VideoListSerializer
+      - Course title reference
+      - Next/Previous lesson navigation
+  
+  Used in:
+      - GET /api/lessons/{id}/ - Retrieve specific lesson details
+  """
+  
+
+  course_title = serializers.CharField(source='course.title', read_only=True)
+  duration_formatted = serializers.CharField(source='duration_formatted', read_only=True)
+  video = VideoListSerializer(read_only=True)
+  
+  next_lesson = serializers.SerializerMethodField()
+  previous_lesson = serializers.SerializerMethodField()
+  
+  class Meta:
+    model = Lesson
+    fields = [
+      'id',
+      'title',
+      'description',
+      'order',
+      'is_free_preview',
+      'duration',
+      'duration_formatted',
+      'course_title',
+      'video',
+      'next_lesson',
+      'previous_lesson',
+      'created_at',
+      'updated_at'
+    ]
+    read_only_fields = ['id', 'created_at', 'updated_at']
+  
+  def get_next_lesson(self, obj):
+    """
+    Return the next lesson in the course.
+    
+    Uses the model's get_next_lesson() method to find the subsequent
+    lesson based on order field. Returns serialized lesson data or None.
+    
+    Args:
+        obj (Lesson): The current lesson instance
+        
+    Returns:
+        dict or None: Serialized lesson data if exists, None otherwise
+    """
+
+
+    next_lesson = obj.get_next_lesson()
+    if next_lesson:
+      return LessonListSerializer(next_lesson).data
+    return None
+  
+  def get_previous_lesson(self, obj):
+    """
+    Return the previous lesson in the course.
+    
+    Uses the model's get_previous_lesson() method to find the preceding
+    lesson based on order field. Returns serialized lesson data or None.
+    
+    Args:
+        obj (Lesson): The current lesson instance
+        
+    Returns:
+        dict or None: Serialized lesson data if exists, None otherwise
+    """
+    previous_lesson = obj.get_previous_lesson()
+    if previous_lesson:
+      return LessonListSerializer(previous_lesson).data
+    return None
