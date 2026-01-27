@@ -399,4 +399,148 @@ class LessonCreateSerializer(serializers.ModelSerializer):
     
     return data
 
+
+class LessonUpdateSerializer(serializers.ModelSerializer):
+  """
+  Serializer for updating existing lessons.
+  
+  Enforces business rules for lesson updates:
+  - User can only update lessons in their own courses (ownership)
+  - Cannot change the course of an existing lesson (immutable)
+  - Order must be unique within course (only validates if order changed)
+  - Video can only be changed to another unused video
+  
+  Validations:
+  - Ownership: same as LessonCreateSerializer
+  - course: immutable field, cannot be changed
+  - order: validates uniqueness only if value changed
+  - video: allows keeping same video, validates if changing to new one
+  """
+
+
+  class Meta:
+    model = Lesson
+    fields = [
+      'title', 'course', 'video', 'order',
+      'description', 'is_free_preview', 'duration'      
+    ]
+
+    read_only_fields = ['course']
+
+  def validate_course(self, value):
+    """
+    Prevent changing the course of an existing lesson.
     
+    Business rule: Lessons cannot be moved between courses.
+    Only new lessons can be assigned to a course.
+    
+    Implementation Note:
+    ---------------------
+    The check `self.instance and self.instance.course != value` serves two purposes:
+    
+    1. `self.instance` check:
+       - In UPDATE operations: self.instance contains the existing object
+       - In CREATE operations: self.instance is None
+       - Without this check, accessing .course on None would raise AttributeError
+       - This allows CREATE to pass through (new lessons can choose any course)
+    
+    2. `self.instance.course != value` check:
+       - Only executes if instance exists (UPDATE operation)
+       - Compares current course with the incoming value
+       - If different: raises ValidationError (cannot move lesson between courses)
+       - If same: validation passes (lesson stays in its original course)
+    
+    This pattern ensures validation only applies to updates, not creates,
+    which is a common DRF pattern for immutable fields.
+    """
+    if self.instance and self.instance.course != value:
+        raise serializers.ValidationError(
+            f"Cannot change lesson course. This lesson belongs to '{self.instance.course.title}'."
+        )
+    return value
+  
+
+  def validate_video(self, value):
+    """
+    Validate video when updating a lesson.
+    
+    Allows keeping the same video or changing to an unused one.
+    Prevents assigning a video that already belongs to another lesson.
+    
+    Args:
+        value (Video): The video instance
+        
+    Returns:
+        Video: Validated video instance
+        
+    Raises:
+        ValidationError: If new video is already associated with another lesson
+    """
+    
+
+    if self.instance and self.instance.video == value:
+      return value
+
+    if hasattr(value, 'lesson'):
+      raise serializers.ValidationError(
+        f"This video is already associated with lesson: {value.lesson.title}"
+      )
+    
+    return value
+  
+
+  def validate(self, data):
+    """
+    Validate combined field constraints for lesson updates.
+
+    Checks:
+    1. Ownership: User can only update lessons in their own courses
+    2. unique_together: [course, order] must be unique (only if order changed)
+
+    Args:
+        data (dict): Validated field data
+
+    Returns:
+        dict: Validated data
+
+    Raises:
+        ValidationError: If ownership or uniqueness constraints fail
+    """
+
+    course = data.get('course', self.instance.course if self.instance else None)
+    order = data.get('order')
+    
+    # Validate ownership: user can only update lessons in their own courses
+    request = self.context.get('request')
+    
+    if request and course:
+      if not hasattr(request, 'user') or not request.user.is_authenticated:
+        raise serializers.ValidationError(
+          "Authentication required to update lessons."
+        )
+      
+      if course.instructor != request.user:
+        raise serializers.ValidationError({
+          'course': f"You can only update lessons in your own courses. This course belongs to {course.instructor.get_full_name() or course.instructor.username}."
+        })
+    
+    # Validate unique_together: [course, order] only if order changed
+    if self.instance and order is not None and order != self.instance.order:
+      if Lesson.objects.filter(course=course, order=order).exists():
+        raise serializers.ValidationError({
+          'order': f"A lesson with order {order} already exists in this course. Please choose a different order number."
+        })
+    
+    return data
+
+
+    
+
+
+
+
+
+
+
+
+
