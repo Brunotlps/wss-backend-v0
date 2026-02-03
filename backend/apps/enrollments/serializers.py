@@ -12,6 +12,7 @@ Key Features:
 """
 
 from rest_framework import serializers
+from django.utils import timezone
 from .models import Enrollment, LessonProgress, Course
 from apps.videos.serializers import LessonListSerializer
 
@@ -212,3 +213,140 @@ class EnrollmentDetailSerializer(serializers.ModelSerializer):
         if next_lesson_obj:
             return LessonListSerializer(next_lesson_obj).data
         return None
+    
+
+class LessonProgressSerializer(serializers.ModelSerializer):
+    """
+    Serializer for creating and updating lesson progress.
+    
+    Handles student progress tracking with the following features:
+    - Progress creation when starting a lesson
+    - Watched duration updates (resume functionality)
+    - Lesson completion marking
+    - Automatic timestamp management
+    
+    Business Rules:
+        - watched_duration cannot exceed lesson.duration
+        - Only enrollment owner can update progress
+        - completed=True auto-sets completed_at timestamp
+        - last_watched_at updates on every watched_duration change
+    
+    Used in:
+        - POST /api/progress/ (create new progress)
+        - PATCH /api/progress/{id}/ (update progress)
+    """
+    
+
+    progress_percentage = serializers.FloatField(source='progress_percentage', read_only=True)
+    
+    
+    class Meta:
+        model = LessonProgress
+        fields = [
+            'id', 'enrollment', 'lesson', 'completed', 'completed_at',
+            'watched_duration', 'last_watched_at', 'progress_percentage'
+        ]
+        
+        read_only_fields = ['id', 'completed_at', 'last_watched_at', 'progress_percentage']
+        
+        extra_kwargs = {
+            'enrollment': {'write_only': True},
+            'lesson': {'write_only': True}
+        }
+
+    
+    
+    def validate_watched_duration(self, value):
+        """
+        Validate watched_duration is not negative.
+        
+        Field-level validation (Nível 1).
+        
+        Args:
+            value (int): The watched duration in minutes
+            
+        Returns:
+            int: Validated watched duration
+            
+        Raises:
+            ValidationError: If duration is negative
+        """
+        if value < 0:
+            raise serializers.ValidationError("Watched duration cannot be negative.")
+        return value
+ 
+    
+    
+    def validate(self, attrs):
+        """
+        Validate object-level business rules.
+        
+        Object-level validation (Nível 2):
+        - watched_duration cannot exceed lesson.duration
+        - Only enrollment owner can create/update progress
+        
+        Args:
+            attrs (dict): Validated field data from level 1
+            
+        Returns:
+            dict: Validated attributes
+            
+        Raises:
+            ValidationError: If business rules are violated
+        """
+
+
+        request = self.context.get('request')
+        user = request.user if request else None
+
+        enrollment = attrs.get('enrollment') if 'enrollment' in attrs else (self.instance.enrollment if self.instance else None)
+        lesson = attrs.get('lesson') if 'lesson' in attrs else (self.instance.lesson if self.instance else None)
+
+        if enrollment and user and enrollment.user != user:
+            raise serializers.ValidationError({
+                'enrollment': "You can only update your own progress."
+            })
+        
+        if lesson:
+            watched_duration = attrs.get('watched_duration', self.instance.watched_duration if self.instance else 0)
+            if watched_duration > lesson.duration:
+                raise serializers.ValidationError({
+                    'watched_duration': f"Watched duration cannot exceed lesson duration of {lesson.duration} minutes."
+                })
+            
+        if attrs.get('completed') and 'watched_duration' in attrs:
+            if attrs['watched_duration'] != lesson.duration:
+                attrs['watched_duration'] = lesson.duration
+
+        return attrs
+    
+    
+    def update(self, instance, validated_data):
+        """
+        Update lesson progress with automatic timestamp management.
+        
+        Auto-sets:
+        - completed_at when completed changes from False to True
+        - last_watched_at when watched_duration changes
+        - watched_duration = lesson.duration when completed=True
+        
+        Args:
+            instance (LessonProgress): Existing progress record
+            validated_data (dict): Validated data to update
+            
+        Returns:
+            LessonProgress: Updated progress instance
+        """
+
+        if validated_data.get('completed') and not instance.completed:
+            validated_data['completed_at'] = timezone.now()
+        
+
+        if 'watched_duration' in validated_data:
+            validated_data['last_watched_at'] = timezone.now()
+        
+        if validated_data.get('completed'):
+            validated_data['watched_duration'] = instance.lesson.duration
+        
+
+        return super().update(instance, validated_data)
