@@ -129,3 +129,86 @@ class EnrollmentListSerializer(serializers.ModelSerializer):
             'total_watched_duration'
         ]
         read_only_fields = ['id', 'enrolled_at']
+
+
+class EnrollmentDetailSerializer(serializers.ModelSerializer):
+    """
+    Detailed enrollment serializer for individual enrollment views.
+    
+    Provides complete enrollment information including full progress
+    tracking for all lessons and next lesson recommendation.
+    
+    Fields:
+        - id: Enrollment identifier
+        - course: Nested course information
+        - enrolled_at: Enrollment timestamp
+        - is_active: Whether enrollment is active
+        - completed: Whether course is completed
+        - completed_at: Course completion timestamp
+        - certificate_issued: Whether certificate was generated
+        - rating: Student's course rating (1-5, nullable)
+        - review: Written review text
+        - progress_percentage: % of lessons completed
+        - total_watched_duration: Total minutes watched
+        - lesson_progress: List of all lesson progress records (nested)
+        - next_lesson: Next incomplete lesson (computed)
+    
+    Used in:
+        - GET /api/enrollments/{id}/ (enrollment details)
+    """
+    
+    # Nested course info
+    course = CourseListSerializer(read_only=True)
+    
+    # @properties from Enrollment model
+    progress_percentage = serializers.FloatField(source='progress_percentage', read_only=True)
+    
+    total_watched_duration = serializers.IntegerField(source='total_watched_duration', read_only=True)
+    
+    # Nested list of all lesson progress (many=True)
+    lesson_progress = LessonProgressListSerializer(many=True, read_only=True)
+    
+    # Navigation helper (SerializerMethodField)
+    next_lesson = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Enrollment
+        fields = [
+            'id',
+            'course',
+            'enrolled_at',
+            'is_active',
+            'completed',
+            'completed_at',
+            'certificate_issued',
+            'rating',
+            'review',
+            'progress_percentage',
+            'total_watched_duration',
+            'lesson_progress',
+            'next_lesson'
+        ]
+        read_only_fields = [
+            'id',
+            'enrolled_at',
+            'completed_at',
+            'certificate_issued'
+        ]
+    
+    def get_next_lesson(self, obj):
+        """
+        Return the next lesson to watch (first incomplete lesson).
+        
+        Uses the model's get_next_lesson() method to find the next
+        incomplete lesson based on progress tracking.
+        
+        Args:
+            obj (Enrollment): The enrollment instance
+            
+        Returns:
+            dict or None: Serialized lesson data if exists, None if all completed
+        """
+        next_lesson_obj = obj.get_next_lesson()
+        if next_lesson_obj:
+            return LessonListSerializer(next_lesson_obj).data
+        return None
