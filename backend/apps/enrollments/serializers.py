@@ -12,7 +12,7 @@ Key Features:
 """
 
 from rest_framework import serializers
-from .models import Enrollment, LessonProgress
+from .models import Enrollment, LessonProgress, Course
 from apps.videos.serializers import LessonListSerializer
 
 
@@ -52,3 +52,80 @@ class LessonProgressListSerializer(serializers.ModelSerializer):
       ]
       
       read_only_fields = ['id', 'last_watched_at']  
+
+
+class CourseListSerializer(serializers.ModelSerializer):
+    """
+    Minimal course serializer for nested use in enrollments.
+    
+    Provides essential course information without full details.
+    Includes instructor name for display purposes.
+    
+    Fields:
+        - id: Course identifier
+        - title: Course name
+        - slug: URL-friendly identifier
+        - thumbnail: Course cover image
+        - instructor_name: Full name of course instructor
+        - difficulty: Course difficulty level
+    
+    Used in:
+        - Nested in EnrollmentListSerializer
+        - Nested in EnrollmentDetailSerializer
+    """
+    
+    instructor_name = serializers.CharField(source='instructor.get_full_name', read_only=True)
+    
+    class Meta:
+        model = Course
+        fields = [
+            'id',
+            'title',
+            'slug',
+            'thumbnail',
+            'instructor_name',
+            'difficulty'
+        ]
+        read_only_fields = ['id', 'slug']
+
+
+class EnrollmentListSerializer(serializers.ModelSerializer):
+    """
+    Enrollment list serializer for "My Courses" dashboard.
+    
+    Shows active and completed enrollments with progress information
+    and basic course details.
+    
+    Fields:
+        - id: Enrollment identifier
+        - course: Nested course information
+        - enrolled_at: Enrollment timestamp
+        - is_active: Whether enrollment is active
+        - completed: Whether course is completed
+        - progress_percentage: % of lessons completed
+        - total_watched_duration: Total minutes watched
+    
+    Used in:
+        - GET /api/enrollments/ (list user's courses)
+    """
+    
+    # Nested course info
+    course = CourseListSerializer(read_only=True)
+    
+    # @properties from Enrollment model
+    progress_percentage = serializers.FloatField(source='progress_percentage', read_only=True)
+    
+    total_watched_duration = serializers.IntegerField(source='total_watched_duration', read_only=True)
+    
+    class Meta:
+        model = Enrollment
+        fields = [
+            'id',
+            'course',
+            'enrolled_at',
+            'is_active',
+            'completed',
+            'progress_percentage',
+            'total_watched_duration'
+        ]
+        read_only_fields = ['id', 'enrolled_at']
