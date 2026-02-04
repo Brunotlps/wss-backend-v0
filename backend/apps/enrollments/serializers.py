@@ -350,3 +350,94 @@ class LessonProgressSerializer(serializers.ModelSerializer):
         
 
         return super().update(instance, validated_data)
+    
+
+class EnrollmentUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating enrollments (rating, review, activation).
+    
+    Allows students to:
+    - Rate courses (1-5 stars)
+    - Write reviews/feedback
+    - Activate/deactivate enrollments
+    
+    Business Rules:
+        - Only enrollment owner can update
+        - Rating must be between 1-5
+        - Review requires at least one completed lesson
+        - Cannot modify user, course, or system-managed fields
+    
+    Used in:
+        - PATCH /api/enrollments/{id}/ (update enrollment)
+    """
+    
+    # @property from Enrollment model (useful for frontend after update)
+    progress_percentage = serializers.FloatField(source='progress_percentage', read_only=True)
+    
+    class Meta:
+        model = Enrollment
+        fields = [
+            'id',
+            'is_active',
+            'rating',
+            'review',
+            'completed',
+            'completed_at',
+            'progress_percentage'
+        ]
+        read_only_fields = ['id', 'completed', 'completed_at', 'progress_percentage']
+    
+
+    def validate_rating(self, value):
+        """
+        Validate rating is within 1-5 range.
+        
+        Field-level validation (Nível 1).
+        
+        Args:
+            value (int or None): Rating value
+            
+        Returns:
+            int or None: Validated rating
+            
+        Raises:
+            ValidationError: If rating is out of range
+        """
+        if value is not None and (value < 1 or value > 5):
+            raise serializers.ValidationError("Rating must be between 1 and 5 stars.")
+        return value
+    
+    def validate(self, attrs):
+        """
+        Validate object-level business rules.
+        
+        Validations:
+        - Only enrollment owner can update
+        - Review requires at least one completed lesson
+        
+        Args:
+            attrs (dict): Validated field data
+            
+        Returns:
+            dict: Validated attributes
+            
+        Raises:
+            ValidationError: If business rules are violated
+        """
+
+
+        request = self.context.get('request')
+        user = request.user if request else None
+        
+        if self.instance and user and self.instance.user != user:
+            raise serializers.ValidationError({
+                'enrollment': "You can only update your own enrollment."
+            })
+        
+        if 'review' in attrs and attrs['review']:
+            if self.instance.lesson_progress.filter(completed=True).count() == 0:
+                raise serializers.ValidationError({
+                    'review': "You must complete at least one lesson before reviewing the course."
+                })
+        
+        return attrs
