@@ -49,14 +49,34 @@ class IsOwnerOrReadOnly(BasePermission):
         Logic:
             - Read permissions (GET, HEAD, OPTIONS) are allowed to any request
             - Write permissions are only allowed to the owner of the object
+            - DELETE operations restricted to staff users only
+            
+        Notes:
+            - For User objects: checks if obj == request.user
+            - For related objects (Profile, Enrollment): checks if obj.user == request.user
+            - For Course objects: checks if obj.instructor == request.user
         """
         if request.method in SAFE_METHODS:
             return True
                 
         elif request.method == 'DELETE':
-            return request.user.is_staff  # Só admin pode deletar
-        else:  # POST, PATCH
-            return obj.user == request.user
+            return request.user.is_staff
+        
+        else:  # POST, PUT, PATCH
+            # Handle User objects (obj is the user itself)
+            if hasattr(obj, 'username') and hasattr(obj, 'email'):
+                return obj == request.user
+            
+            # Handle objects with 'user' attribute (Profile, Enrollment, etc.)
+            elif hasattr(obj, 'user'):
+                return obj.user == request.user
+            
+            # Handle Course objects (instructor ownership)
+            elif hasattr(obj, 'instructor'):
+                return obj.instructor == request.user
+            
+            # Deny by default for unknown object types
+            return False
     
 
 

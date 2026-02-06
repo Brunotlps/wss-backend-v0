@@ -138,39 +138,51 @@ class CurrentUserView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+class UserViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for complete user management.
+    
+    Provides CRUD endpoints for users with:
+    - Paginated and filterable listing
+    - Complete details with nested profile
+    - Updates with validations
+    - Search by username/email
+    - Customizable ordering
+    
+    Permissions:
+        - IsOwnerOrReadOnly: Anyone can read, only owner can edit
+    """
+    
+    # Base configuration
+    queryset = User.objects.all()
+    permission_classes = [IsOwnerOrReadOnly]
+    
+    # Filters and search
+    filterset_fields = ['is_instructor', 'is_active']
+    search_fields = ['username', 'email']
+    ordering_fields = ['username', 'date_joined']
+    ordering = ['-date_joined']
+    
+    # Dynamic serializers
+    def get_serializer_class(self):
+        """
+        Returns the appropriate serializer for each action.
+        
+        Returns:
+            Serializer class based on self.action:
+            - list: UserListSerializer (minimal fields)
+            - retrieve: UserDetailSerializer (complete with nested)
+            - update/partial_update: UserUpdateSerializer (editable fields)
+            - default: UserDetailSerializer
+        """
+        if self.action == 'list':
+            return UserListSerializer
+        elif self.action == 'retrieve':
+            return UserDetailSerializer
+        elif self.action in ['update', 'partial_update']:
+            return UserUpdateSerializer
+        return UserDetailSerializer
 
-
-# =============================================================================
-# IMPLEMENTAÇÃO 3: UserViewSet
-# =============================================================================
-# OBJETIVO: CRUD completo de usuários com permissões diferenciadas
-# TIPO: ModelViewSet (operações automáticas)
-# URLs GERADAS: list, create, retrieve, update, partial_update, destroy
-# PERMISSÃO: IsOwnerOrReadOnly (qualquer um lê, só dono edita)
-# SERIALIZERS: Múltiplos (depende da action)
-#
-# CONFIGURAÇÕES:
-# - queryset: User.objects.all()
-# - permission_classes: [IsOwnerOrReadOnly]
-# - filterset_fields: ['is_instructor', 'is_active']
-# - search_fields: ['username', 'email']
-# - ordering_fields: ['username', 'date_joined']
-# - ordering: ['-date_joined']
-#
-# MÉTODO get_serializer_class():
-# - action == 'list': UserListSerializer
-# - action == 'retrieve': UserDetailSerializer
-# - action in ['update', 'partial_update']: UserUpdateSerializer
-# - default: UserDetailSerializer
-#
-# ESTRUTURA DA CLASSE:
-# - Herda de viewsets.ModelViewSet
-# - Define queryset
-# - Define permission_classes
-# - Define filterset_fields, search_fields, ordering_fields, ordering
-# - Implementa get_serializer_class(self)
-#
-# TODO: Implementar a classe UserViewSet seguindo a estrutura acima
 
 
 # =============================================================================
