@@ -184,25 +184,21 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserDetailSerializer
 
 
-
-# =============================================================================
-# IMPLEMENTAÇÃO 4: ProfileViewSet
-# =============================================================================
-# OBJETIVO: Gerenciamento de perfis de usuários
-# TIPO: ModelViewSet
-# URLs GERADAS: list, create, retrieve, update, partial_update, destroy
-# PERMISSÃO: IsOwnerOrReadOnly
-# SERIALIZER: ProfileSerializer
-#
-# CONFIGURAÇÕES:
-# - queryset: Profile.objects.select_related('user')
-# - serializer_class: ProfileSerializer
-# - permission_classes: [IsOwnerOrReadOnly]
-#
-# ESTRUTURA DA CLASSE:
-# - Herda de viewsets.ModelViewSet
-# - Define queryset (com select_related para otimização)
-# - Define serializer_class
-# - Define permission_classes
-#
-# TODO: Implementar a classe ProfileViewSet seguindo a estrutura acima
+class ProfileViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for complete profile management.
+    
+    Provides CRUD endpoints for user profiles with:
+    - Paginated and filterable listing
+    - Complete details with related user information
+    - Updates with validations
+    - Optimized queries with select_related
+    
+    Permissions:
+        - IsOwnerOrReadOnly: Anyone can read, only owner can edit
+    """
+    
+    # Base configuration
+    queryset = Profile.objects.select_related('user')
+    serializer_class = ProfileSerializer
+    permission_classes = [IsOwnerOrReadOnly]
