@@ -48,8 +48,8 @@ urlpatterns = [
     # ReDoc - alternative API documentation interface with a different layout
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),  
     
-    # Apps URLs (serão adicionadas posteriormente)
-    # path('api/users/', include('apps.users.urls')),
+    # Apps URLs
+    path('api/', include('apps.users.urls')),
     # path('api/courses/', include('apps.courses.urls')),
     # path('api/videos/', include('apps.videos.urls')),
     # path('api/enrollments/', include('apps.enrollments.urls')),
