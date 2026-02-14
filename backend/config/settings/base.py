@@ -48,8 +48,11 @@ env = environ.Env(
     ALLOWED_HOSTS=(list, []),
 )
 
-# Read .env file
-environ.Env.read_env(os.path.join(BASE_DIR.parent, '.env'))
+# Read .env file (prioritize .env.local for development)
+env_file = os.path.join(BASE_DIR.parent, '.env.local')
+if not os.path.exists(env_file):
+    env_file = os.path.join(BASE_DIR.parent, '.env')
+environ.Env.read_env(env_file)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')

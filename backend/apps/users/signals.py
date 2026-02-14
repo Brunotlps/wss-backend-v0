@@ -42,24 +42,24 @@ def create_user_profile(sender, instance, created, **kwargs):
         Profile.objects.create(user=instance)
 
 
-@receiver(post_save, sender=User)
-def save_user_profile(sender, instance, **kwargs):
-    """
-    Ensure the User's Profile is saved when the User is saved.
+# @receiver(post_save, sender=User)
+# def save_user_profile(sender, instance, **kwargs):
+#     """
+#     Ensure the User's Profile is saved when the User is saved.
     
-    This signal handler ensures that if a Profile exists for a User,
-    it is saved whenever the User is saved. This helps maintain data
-    consistency and can trigger any additional Profile-level logic.
+#     This signal handler ensures that if a Profile exists for a User,
+#     it is saved whenever the User is saved. This helps maintain data
+#     consistency and can trigger any additional Profile-level logic.
     
-    Args:
-        sender (Model): The model class that sent the signal (User).
-        instance (User): The actual User instance being saved.
-        **kwargs: Additional keyword arguments from the signal.
+#     Args:
+#         sender (Model): The model class that sent the signal (User).
+#         instance (User): The actual User instance being saved.
+#         **kwargs: Additional keyword arguments from the signal.
     
-    Notes:
-        - This only saves existing profiles, doesn't create new ones
-        - Uses hasattr() check to avoid errors if Profile doesn't exist
-        - Profile creation is handled by create_user_profile signal
-    """
-    if hasattr(instance, 'profile'):
-        instance.profile.save()
+#     Notes:
+#         - This only saves existing profiles, doesn't create new ones
+#         - Uses hasattr() check to avoid errors if Profile doesn't exist
+#         - Profile creation is handled by create_user_profile signal
+#     """
+#     if hasattr(instance, 'profile'):
+#         instance.profile.save()

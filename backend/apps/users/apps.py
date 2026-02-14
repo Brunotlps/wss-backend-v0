@@ -5,7 +5,7 @@ This module configures the Users app and ensures that signals
 are properly registered when the app is ready.
 """
 
-from django.apps import AppConfigcreate
+from django.apps import AppConfig
 
 
 class UsersConfig(AppConfig):
