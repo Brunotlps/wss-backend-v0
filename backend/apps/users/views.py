@@ -72,8 +72,10 @@ class UserRegistrationView(APIView):
         """
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            user = serializer.save()
+            user.refresh_from_db()  
+            response_serializer = UserDetailSerializer(user)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -167,21 +169,47 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         """
         Returns the appropriate serializer for each action.
-        
+
         Returns:
             Serializer class based on self.action:
             - list: UserListSerializer (minimal fields)
+            - create: UserRegistrationSerializer (with password hashing)
             - retrieve: UserDetailSerializer (complete with nested)
             - update/partial_update: UserUpdateSerializer (editable fields)
             - default: UserDetailSerializer
         """
         if self.action == 'list':
             return UserListSerializer
+        elif self.action == 'create':
+            return UserRegistrationSerializer
         elif self.action == 'retrieve':
             return UserDetailSerializer
         elif self.action in ['update', 'partial_update']:
             return UserUpdateSerializer
         return UserDetailSerializer
+
+
+    def create(self, request, *args, **kwargs):
+        """
+        Create a new user via UserViewSet.
+        
+        Override default create to return UserDetailSerializer in response,
+        ensuring profile is nested and complete user data is returned.
+        This makes the response consistent with UserRegistrationView.
+        
+        Args:
+            request: HTTP request with user registration data.
+        
+        Returns:
+            Response with UserDetailSerializer data (includes nested profile).
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        user.refresh_from_db()  # Reload to include profile created by signal
+        response_serializer = UserDetailSerializer(user)
+        headers = self.get_success_headers(response_serializer.data)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class ProfileViewSet(viewsets.ModelViewSet):
