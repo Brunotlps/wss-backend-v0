@@ -60,7 +60,6 @@ class IsInstructorOrReadOnly(BasePermission):
         
         return request.user and request.user.is_authenticated and request.user.is_instructor
 
-
 class IsCourseOwnerOrReadOnly(BasePermission):
     """
     Custom permission to only allow course owners to edit/delete their courses.
