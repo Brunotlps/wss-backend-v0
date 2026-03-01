@@ -51,8 +51,8 @@ urlpatterns = [
     # Apps URLs
     path('api/', include('apps.users.urls')),
     path('api/', include('apps.courses.urls')),
-    # path('api/videos/', include('apps.videos.urls')),
-    # path('api/enrollments/', include('apps.enrollments.urls')),
+    path('api/', include('apps.videos.urls')),  # Includes both /videos/ and /lessons/ routes
+    # path('api/', include('apps.enrollments.urls')),
 ]
 
 # Django Debug Toolbar (apenas em desenvolvimento)
