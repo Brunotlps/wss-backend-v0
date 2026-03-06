@@ -53,6 +53,8 @@ class Video(TimeStampedModel):
   file = models.FileField(
       _('video file'),
       upload_to='videos/%Y/%m/',  # Organized by year/month
+      blank=True,
+      null=True,
       help_text=_('Video file (MP4, WebM, AVI, etc)')
   )
   

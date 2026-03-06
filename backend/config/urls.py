@@ -55,7 +55,7 @@ urlpatterns = [
     # path('api/', include('apps.enrollments.urls')),
 ]
 
-# Django Debug Toolbar (apenas em desenvolvimento)
+# Django Debug Toolbar (dev only)
 if settings.DEBUG:
     import debug_toolbar
     urlpatterns += [

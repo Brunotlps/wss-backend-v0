@@ -172,7 +172,7 @@ class VideoListSerializer(serializers.ModelSerializer):
     """
     
 
-    duration_formatted = serializers.CharField(source='duration_formatted', read_only=True)
+    duration_formatted = serializers.CharField(read_only=True)
 
     class Meta:
       model = Video
@@ -204,7 +204,7 @@ class LessonListSerializer(serializers.ModelSerializer):
   
   course_title = serializers.CharField(source='course.title', read_only=True)
   
-  duration_formatted = serializers.CharField(source='duration_formatted', read_only=True)
+  duration_formatted = serializers.CharField(read_only=True)
   
   video_thumbnail = serializers.ImageField(
     source='video.thumbnail',  
@@ -244,7 +244,7 @@ class LessonDetailSerializer(serializers.ModelSerializer):
   
 
   course_title = serializers.CharField(source='course.title', read_only=True)
-  duration_formatted = serializers.CharField(source='duration_formatted', read_only=True)
+  duration_formatted = serializers.CharField(read_only=True)
   video = VideoListSerializer(read_only=True)
   
   next_lesson = serializers.SerializerMethodField()
