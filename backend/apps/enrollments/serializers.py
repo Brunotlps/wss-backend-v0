@@ -14,6 +14,7 @@ Key Features:
 from rest_framework import serializers
 from django.utils import timezone
 from .models import Enrollment, LessonProgress, Course
+from apps.videos.models import Lesson
 from apps.videos.serializers import LessonListSerializer
 
 
@@ -38,7 +39,7 @@ class LessonProgressListSerializer(serializers.ModelSerializer):
       - GET /api/enrollments/{id}/progress/ (list progress)
   """
 
-  progress_percentage = serializers.FloatField(source='progress_percentage', read_only=True) 
+  progress_percentage = serializers.FloatField(read_only=True) 
   lesson = LessonListSerializer(read_only=True) # Nested Serializer
   
   class Meta:
@@ -110,18 +111,26 @@ class EnrollmentListSerializer(serializers.ModelSerializer):
         - GET /api/enrollments/ (list user's courses)
     """
     
-    # Nested course info
+    # For writing: accept course ID
+    course_id = serializers.PrimaryKeyRelatedField(
+        queryset=Course.objects.all(),
+        source='course',
+        write_only=True
+    )
+    
+    # For reading: return nested course object
     course = CourseListSerializer(read_only=True)
     
     # @properties from Enrollment model
-    progress_percentage = serializers.FloatField(source='progress_percentage', read_only=True)
+    progress_percentage = serializers.FloatField(read_only=True)
     
-    total_watched_duration = serializers.IntegerField(source='total_watched_duration', read_only=True)
+    total_watched_duration = serializers.IntegerField(read_only=True)
     
     class Meta:
         model = Enrollment
         fields = [
             'id',
+            'course_id',
             'course',
             'enrolled_at',
             'is_active',
@@ -158,13 +167,20 @@ class EnrollmentDetailSerializer(serializers.ModelSerializer):
         - GET /api/enrollments/{id}/ (enrollment details)
     """
     
-    # Nested course info
+    # For writing: accept course ID
+    course_id = serializers.PrimaryKeyRelatedField(
+        queryset=Course.objects.all(),
+        source='course',
+        write_only=True
+    )
+    
+    # For reading: return nested course object
     course = CourseListSerializer(read_only=True)
     
     # @properties from Enrollment model
-    progress_percentage = serializers.FloatField(source='progress_percentage', read_only=True)
+    progress_percentage = serializers.FloatField(read_only=True)
     
-    total_watched_duration = serializers.IntegerField(source='total_watched_duration', read_only=True)
+    total_watched_duration = serializers.IntegerField(read_only=True)
     
     # Nested list of all lesson progress (many=True)
     lesson_progress = LessonProgressListSerializer(many=True, read_only=True)
@@ -176,6 +192,7 @@ class EnrollmentDetailSerializer(serializers.ModelSerializer):
         model = Enrollment
         fields = [
             'id',
+            'course_id',
             'course',
             'enrolled_at',
             'is_active',
@@ -236,23 +253,38 @@ class LessonProgressSerializer(serializers.ModelSerializer):
         - PATCH /api/progress/{id}/ (update progress)
     """
     
+    # For writing: accept enrollment ID
+    enrollment_id = serializers.PrimaryKeyRelatedField(
+        queryset=Enrollment.objects.all(),
+        source='enrollment',
+        write_only=True
+    )
+    
+    # For reading: return enrollment ID only (not nested)
+    enrollment = serializers.PrimaryKeyRelatedField(read_only=True)
+    
+    # For writing: accept lesson ID
+    lesson_id = serializers.PrimaryKeyRelatedField(
+        queryset=Lesson.objects.all(),
+        source='lesson',
+        write_only=True
+    )
+    
+    # For reading: return lesson ID only (not nested)
+    lesson = serializers.PrimaryKeyRelatedField(read_only=True)
 
-    progress_percentage = serializers.FloatField(source='progress_percentage', read_only=True)
+    progress_percentage = serializers.FloatField(read_only=True)
     
     
     class Meta:
         model = LessonProgress
         fields = [
-            'id', 'enrollment', 'lesson', 'completed', 'completed_at',
-            'watched_duration', 'last_watched_at', 'progress_percentage'
+            'id', 'enrollment_id', 'enrollment', 'lesson_id', 'lesson', 
+            'completed', 'completed_at', 'watched_duration', 'last_watched_at', 
+            'progress_percentage'
         ]
         
         read_only_fields = ['id', 'completed_at', 'last_watched_at', 'progress_percentage']
-        
-        extra_kwargs = {
-            'enrollment': {'write_only': True},
-            'lesson': {'write_only': True}
-        }
 
     
     
