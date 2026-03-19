@@ -36,6 +36,8 @@ Dependencies:
 """
 
 import os
+import random
+import string
 
 from datetime import datetime
 from django.conf import settings
@@ -349,4 +351,16 @@ def generate_certificate_code():
         >>> code = generate_certificate_code()
         >>> print(code)  # 'WSS-2026-A1B2C3'
     """
-    pass  # To be implemented in next phase
+    
+    from apps.certificates.models import Certificate
+
+    PREFIX = "WSS"
+    CHARS  = string.ascii_uppercase + string.digits  # A-Z + 0-9
+    year   = datetime.now().year
+
+    while True:
+        random_part = "".join(random.choices(CHARS, k=6))
+        code = f"{PREFIX}-{year}-{random_part}"
+
+        if not Certificate.objects.filter(certificate_code=code).exists():
+            return code
