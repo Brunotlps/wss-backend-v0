@@ -78,6 +78,13 @@ class Certificate(TimeStampedModel):
         default=True,
         help_text=_('Whether this certificate is valid (allows revocation)')
     )
+    
+    pdf_generation_failed_at = models.DateTimeField(
+        _('PDF generation failed at'),
+        null=True,
+        blank=True,
+        help_text=_('Timestamp of the last PDF generation failure')
+    )
 
     class Meta:
         verbose_name = _('certificate')
