@@ -1,7 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.response import FileResponse
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from .models import Certificate
 from .serializers import CertificateSerializer
@@ -55,7 +55,7 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
             )
         
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], url_path='validate')
     def validate_ownership(self, request, pk=None):
         
         certificate = self.get_object()
@@ -77,7 +77,7 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
     )
     def validate_by_code(self, request, code=None):
 
-        certificate = get_object_or_404(Certificate, certificate_code=code)
+        certificate = get_object_or_404(Certificate.objects.select_related('enrollment__user'), certificate_code=code)
 
         return Response(
             {
