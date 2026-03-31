@@ -55,6 +55,7 @@ if not os.path.exists(env_file):
 environ.Env.read_env(env_file)
 
 # SECURITY WARNING: keep the secret key used in production secret!
+# Consider rotating secret keys in the future 
 SECRET_KEY = env('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
