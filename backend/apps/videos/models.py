@@ -19,6 +19,11 @@ from django.core.validators import MinValueValidator
 
 from apps.core.models import TimeStampedModel
 from apps.courses.models import Course
+from apps.videos.validators import (
+    validate_video_size,
+    validate_video_extension,
+    validate_video_mimetype,
+)
 
 
 class Video(TimeStampedModel):
@@ -55,7 +60,12 @@ class Video(TimeStampedModel):
       upload_to='videos/%Y/%m/',  # Organized by year/month
       blank=True,
       null=True,
-      help_text=_('Video file (MP4, WebM, AVI, etc)')
+      validators=[
+          validate_video_extension,  # Whitelist: .mp4, .webm, .mov
+          validate_video_size,       # Max 2GB for HD 1080p videos
+          validate_video_mimetype,   # Prevent malware (checks real file type)
+      ],
+      help_text=_('Video file (MP4, WebM, MOV only - max 2GB)')
   )
   
   duration = models.DurationField(

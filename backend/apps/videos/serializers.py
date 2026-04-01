@@ -14,9 +14,6 @@ Key Features:
 from rest_framework import serializers 
 from .models import Video, Lesson
 
-
-
-
 class VideoSerializer(serializers.ModelSerializer):
   """
   Serializer for Video CRUD operations.
@@ -67,53 +64,6 @@ class VideoSerializer(serializers.ModelSerializer):
         str: Duration formatted as "HH:MM:SS" (e.g., "01:30:45")
     """
     return obj.duration_formatted
-
-
-
-  def validate_file(self, value):
-    """
-    Validate video file upload.
-    
-    Ensures uploaded file meets size and format requirements.
-    This method is automatically called by DRF during validation.
-    
-    Args:
-        value (UploadedFile): The uploaded file object
-        
-    Returns:
-        UploadedFile: The validated file
-        
-    Raises:
-        ValidationError: If file is too large or has invalid format
-    """
-    
-    
-    max_size = 500 * 1024 * 1024
-    
-    
-    if value.size > max_size:
-      raise serializers.ValidationError(
-        f"File size must not exceed 500MB. Current size: {value.size / (1024 * 1024):.2f}MB"
-      )
-    
-    # Accepted video formats 
-    valid_extensions = ['mp4', 'webm', 'avi', 'mov']
-    allowed_mimes = ['video/mp4', 'video/webm', 'video/x-msvideo']
-    
-    file_extension = value.name.split('.')[-1].lower()
-    
-    if file_extension not in valid_extensions:
-      raise serializers.ValidationError(
-        f"Invalid file format. Accepted formats: {', '.join(valid_extensions)}"
-      )
-    
-    if value.content_type not in allowed_mimes:
-      raise serializers.ValidationError("Invalid MIME type")
-    
-    # Additional validation layers to be implemented in the future, such as Magic bytes, among others...
-    
-    return value
-  
 
   def create(self, validated_data):
     """
