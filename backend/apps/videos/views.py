@@ -63,7 +63,7 @@ from .serializers import (
     LessonCreateSerializer,
     LessonUpdateSerializer,
 )
-from .permissions import IsInstructorOrReadOnly, IsCourseInstructorOrReadOnly
+from .permissions import IsInstructorOrReadOnly, IsCourseInstructorOrReadOnly, IsEnrolled
 from .filters import VideoFilter, LessonFilter
 
 
@@ -209,7 +209,7 @@ class LessonViewSet(viewsets.ModelViewSet):
 
     # Query optimization : Load related course, video, and nested instructor in single query
     queryset = Lesson.objects.select_related('course', 'video', 'course__instructor')
-    permission_classes = [IsAuthenticatedOrReadOnly, IsCourseInstructorOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly, IsEnrolled, IsCourseInstructorOrReadOnly]
 
     # Filtering & Search
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]

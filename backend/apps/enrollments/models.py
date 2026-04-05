@@ -146,6 +146,36 @@ class Enrollment(TimeStampedModel):
       )['watched_duration__sum']
       return total or 0
   
+  def save(self, *args, **kwargs):
+      """
+      Save enrollment and invalidate permission cache.
+      
+      Invalidates the cached enrollment check for this user/course combination
+      to ensure permission checks reflect the latest enrollment status.
+      This is critical for access control - prevents stale cache from
+      blocking/allowing access incorrectly.
+      """
+      super().save(*args, **kwargs)
+      # Clear cache after successful save (not before - avoid race conditions)
+      # Import here to avoid circular import (models ←→ permissions)
+      from apps.videos.permissions import invalidate_enrollment_cache
+      invalidate_enrollment_cache(self.user_id, self.course_id)
+  
+  def delete(self, *args, **kwargs):
+      """
+      Delete enrollment and invalidate permission cache.
+      
+      When an enrollment is deleted (user cancels/refunds), we must clear
+      the cached permission check so they immediately lose access.
+      """
+      user_id = self.user_id
+      course_id = self.course_id
+      # Import here to avoid circular import (models ←→ permissions)
+      from apps.videos.permissions import invalidate_enrollment_cache
+      super().delete(*args, **kwargs)
+      # Clear cache after deletion
+      invalidate_enrollment_cache(user_id, course_id)
+  
   def mark_as_completed(self):
       """Mark enrollment as completed and set completion timestamp."""
       from django.utils import timezone
