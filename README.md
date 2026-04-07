@@ -9,6 +9,7 @@ Plataforma de cursos em vídeo desenvolvida com Django + Django REST Framework.
 - **Cache/Queue**: Redis
 - **Task Queue**: Celery
 - **Storage**: AWS S3 / Minio
+- **Monitoring**: Sentry (Error tracking & Performance)
 - **Containerization**: Docker + Docker Compose
 
 ## 📁 Estrutura do Projeto
@@ -211,8 +212,70 @@ API de certificados validada com 28 testes automatizados:
 
 **Total: 28/28 testes passando (100%)**
 
+[Deixar a collection no final]
+[Implementar testes automatizados]
 
-## 📝 Licença
+
+## � Monitoramento e Rastreamento de Erros
+
+### Sentry Integration
+
+O projeto utiliza **Sentry** para monitoramento de erros em tempo real e rastreamento de performance.
+
+#### Funcionalidades
+
+- **Error Tracking**: Captura automática de exceções não tratadas
+- **Performance Monitoring**: Rastreamento de transações e queries lentas
+- **Release Tracking**: Versionamento de deploys para rastreabilidade
+- **Environment Separation**: Ambientes isolados (development/staging/production)
+- **PII Filtering**: Remoção automática de dados sensíveis (LGPD compliance)
+
+#### Configuração
+
+1. **Obtenha seu DSN do Sentry:**
+   - Acesse https://sentry.io
+   - Crie um novo projeto Django
+   - Copie o DSN fornecido
+
+2. **Configure as variáveis de ambiente:**
+```bash
+# .env ou .env.local
+SENTRY_DSN=https://your-key@o123456.ingest.sentry.io/789012
+ENVIRONMENT=development  # production | staging | development
+RELEASE_VERSION=1.0.0
+```
+
+3. **Integrado automaticamente com:**
+   - Django (views, middlewares, signals)
+   - Redis (cache operations)
+   - Celery (background tasks)
+
+#### Dados Filtrados (Segurança)
+
+O sistema filtra automaticamente dados sensíveis antes de enviar ao Sentry:
+- Headers: `Authorization`, `Cookie`, `X-Api-Key`
+- Request data: `password`, `token`, `secret`, `cpf`
+- Configuração: `send_default_pii=False`
+
+#### Performance
+
+- **Development**: 100% de transações rastreadas (`traces_sample_rate=1.0`)
+- **Production**: 10% de transações rastreadas (`traces_sample_rate=0.1`)
+
+#### Verificação
+
+Para verificar se a integração está funcionando:
+```bash
+# Em desenvolvimento, acesse qualquer endpoint inexistente
+curl http://localhost:8000/api/test-404/
+
+# Verifique no dashboard do Sentry em 5-10 segundos
+```
+
+Dashboard: https://sentry.io/organizations/your-org/issues/
+
+
+## �📝 Licença
 
 [Especificar licença]
 cd wss-backend-v0

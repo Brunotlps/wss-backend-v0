@@ -18,6 +18,10 @@ Key aspects typically handled in development settings:
 This file should never be used in production environments.
 """
 
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
+from sentry_sdk.integrations.celery import CeleryIntegration
 
 from .base import *
 
@@ -96,3 +100,52 @@ LOGGING = {
         },
     },
 }
+
+
+# ==============================================
+# SENTRY CONFIGURATION (Development Testing)
+# ==============================================
+
+def filter_sensitive_data(event, hint):
+    """
+    Filter sensitive data before sending events to Sentry.
+    
+    Removes authentication headers and personal data for LGPD compliance.
+    
+    Args:
+        event (dict): Sentry event containing error information
+        hint (dict): Additional context about the event
+    
+    Returns:
+        dict: Filtered event or None to discard the event
+    """
+    if 'request' in event:
+        headers = event['request'].get('headers', {})
+        if 'Authorization' in headers:
+            headers['Authorization'] = '[Filtered]'
+    
+    if 'request' in event and 'data' in event['request']:
+        data = event['request']['data']
+        if isinstance(data, dict):
+            if 'password' in data:
+                data['password'] = '[Filtered]'
+            if 'token' in data:
+                data['token'] = '[Filtered]'
+    
+    return event
+
+
+if env('SENTRY_DSN', default=None):
+    sentry_sdk.init(
+        dsn=env('SENTRY_DSN'),
+        integrations=[
+            DjangoIntegration(),
+            RedisIntegration(),
+            CeleryIntegration(),
+        ],
+        environment='development',
+        release=env('RELEASE_VERSION', default='1.0.0-dev'),
+        traces_sample_rate=1.0,
+        send_default_pii=False,
+        before_send=filter_sensitive_data,
+    )

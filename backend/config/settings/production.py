@@ -19,7 +19,12 @@ Usage:
   Set DJANGO_SETTINGS_MODULE=config.settings.production in production environment
 """
 import os
+import sentry_sdk
+
 from .base import *
+from sentry_sdk.integrations.django import DjangoIntegration
+from sentry_sdk.integrations.redis import RedisIntegration
+from sentry_sdk.integrations.celery import CeleryIntegration
 
 
 DEBUG = False
@@ -164,9 +169,52 @@ LOGGING = {
 # Create logs directory if it doesn't exist
 os.makedirs(BASE_DIR / 'logs', exist_ok=True)
 
-# You should also configure the web server that sits in front of Django to validate the host. It should respond with a static error page or 
-# ignore requests for incorrect hosts instead of forwarding the request to Django. This way you’ll avoid spurious errors in your Django 
-# logs (or emails if you have error reporting configured that way). For example, on nginx you might set up a default server 
-# to return “444 No Response” on an unrecognized host:
 
-# Cache servers often have weak authentication. Make sure they only accept connections from your application servers.
+# ==============================================
+# SENTRY CONFIGURATION (Error Tracking)
+# ==============================================
+
+def filter_sensitive_data(event, hint):
+    """
+    Filter sensitive data before sending events to Sentry.
+    
+    Removes authentication headers and personal data for LGPD compliance.
+    
+    Args:
+        event (dict): Sentry event containing error information
+        hint (dict): Additional context about the event
+    
+    Returns:
+        dict: Filtered event or None to discard the event
+    """
+    if 'request' in event:
+        headers = event['request'].get('headers', {})
+        if 'Authorization' in headers:
+            headers['Authorization'] = '[Filtered]'
+    
+    if 'request' in event and 'data' in event['request']:
+        data = event['request']['data']
+        if isinstance(data, dict):
+            if 'password' in data:
+                data['password'] = '[Filtered]'
+            if 'token' in data:
+                data['token'] = '[Filtered]'
+    
+    return event
+
+
+# Inicializar Sentry apenas se DSN estiver configurado
+if env('SENTRY_DSN', default=None):
+    sentry_sdk.init(
+        dsn=env('SENTRY_DSN'),
+        integrations=[
+            DjangoIntegration(),
+            RedisIntegration(),
+            CeleryIntegration(),
+        ],
+        environment=env('ENVIRONMENT', default='production'),
+        release=env('RELEASE_VERSION', default='1.0.0'),
+        traces_sample_rate=0.1,
+        send_default_pii=False,
+        before_send=filter_sensitive_data,
+    )
