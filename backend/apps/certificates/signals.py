@@ -24,28 +24,29 @@ Signal Flow:
 
 import logging
 
-from django.utils import timezone
-from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from apps.enrollments.models import Enrollment
+from django.utils import timezone
+
 from apps.certificates.models import Certificate
 from apps.certificates.utils import generate_certificate_code, generate_certificate_pdf
+from apps.enrollments.models import Enrollment
 
 logger = logging.getLogger(__name__)
+
 
 @receiver(post_save, sender=Enrollment)
 def create_certificate_on_completion(sender, instance, created, **kwargs):
     """
     Signal to automatically generate a certificate when an enrollment is completed.
-    
+
     Logic:
     - Detects when enrollment.completed changes to True
     - Verifies if a certificate already exists for this enrollment
     - Generates a unique code
     - Creates a Certificate object
     - Generates and saves the PDF automatically
-    
+
     Args:
         sender: Model class (Enrollment)
         instance: Instance of the saved Enrollment
@@ -67,7 +68,9 @@ def create_certificate_on_completion(sender, instance, created, **kwargs):
 
     code = generate_certificate_code()
 
-    certificate = Certificate.objects.create(enrollment=instance, certificate_code=code, is_valid=False)
+    certificate = Certificate.objects.create(
+        enrollment=instance, certificate_code=code, is_valid=False
+    )
     logger.info(f"Certificate object created with code: {code}")
 
     max_retries = 1
@@ -84,16 +87,20 @@ def create_certificate_on_completion(sender, instance, created, **kwargs):
             certificate.is_valid = True
             certificate.save()
 
-            logger.info(f"Certificate {code} generated successfully on attempt {attempt}")
+            logger.info(
+                f"Certificate {code} generated successfully on attempt {attempt}"
+            )
             break
         except Exception as e:
-            logger.error(f"PDF generation failed (attempt {attempt}): {str(e)}", exc_info=True)
+            logger.error(
+                f"PDF generation failed (attempt {attempt}): {str(e)}", exc_info=True
+            )
 
             if attempt > max_retries:
                 certificate.pdf_generation_failed_at = timezone.now()
                 certificate.save()
 
-                logger.error(f"Certificate {code} failed after {max_retries + 1} attempts. "
-                              f"Manual intervention required.")
-            
-
+                logger.error(
+                    f"Certificate {code} failed after {max_retries + 1} attempts. "
+                    f"Manual intervention required."
+                )

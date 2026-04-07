@@ -1,0 +1,17 @@
+[flake8]
+max-line-length = 88
+# E501: ignored because black handles line length in code.
+# Long lines in docstrings are acceptable and black does not wrap them.
+extend-ignore = E203, W503, E501
+exclude =
+    .git,
+    __pycache__,
+    */migrations/*,
+    venv,
+    .venv,
+    build,
+    dist,
+    *.egg-info
+max-complexity = 10
+per-file-ignores =
+    __init__.py:F401

@@ -7,11 +7,11 @@ viewsets, providing a standardized interface for course discovery, creation, and
 
 Module Overview:
     This module registers two main viewsets with the router:
-    
+
     1. CategoryViewSet: Provides read-only endpoints for course categories
        - GET /api/categories/         - List all active categories
        - GET /api/categories/{id}/    - Retrieve specific category details
-    
+
     2. CourseViewSet: Provides full CRUD endpoints for course management
        - GET /api/courses/             - List courses (role-filtered)
        - POST /api/courses/            - Create course (instructors only)
@@ -37,7 +37,7 @@ URL Patterns Generated:
     Categories (basename='category'):
     - category-list: /api/categories/
     - category-detail: /api/categories/{pk}/
-    
+
     Courses (basename='course'):
     - course-list: /api/courses/
     - course-detail: /api/courses/{pk}/
@@ -49,19 +49,21 @@ URL Patterns Generated:
 Usage Example:
     # In views or serializers
     from django.urls import reverse
-    
+
     category_url = reverse('category-list')
     # Returns: '/api/categories/'
-    
+
     course_detail = reverse('course-detail', kwargs={'pk': 1})
     # Returns: '/api/courses/1/'
-    
+
     lessons_url = reverse('course-lessons', kwargs={'pk': 1})
     # Returns: '/api/courses/1/lessons/'
 """
 
-from django.urls import path, include
+from django.urls import include, path
+
 from rest_framework.routers import DefaultRouter
+
 from .views import CategoryViewSet, CourseViewSet
 
 # Initialize the DefaultRouter for automatic URL routing
@@ -69,13 +71,13 @@ router = DefaultRouter()
 
 # Register CategoryViewSet with 'categories' prefix
 # Generates URLs: /categories/, /categories/{id}/
-router.register(r'categories', CategoryViewSet, basename='category')
+router.register(r"categories", CategoryViewSet, basename="category")
 
 # Register CourseViewSet with 'courses' prefix
 # Generates URLs: /courses/, /courses/{id}/, /courses/{id}/lessons/, etc.
-router.register(r'courses', CourseViewSet, basename='course')
+router.register(r"courses", CourseViewSet, basename="course")
 
 # Export URL patterns for inclusion in project-level urls.py
 urlpatterns = [
-    path('', include(router.urls)),
+    path("", include(router.urls)),
 ]
