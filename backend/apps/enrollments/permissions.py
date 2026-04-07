@@ -22,13 +22,13 @@ Permission Rules:
     - Instructors have read-only access to enrollments in their courses
 """
 
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
 class IsEnrollmentOwner(BasePermission):
     """
     Permission class to control access to enrollment objects.
-    
+
     Rules:
     - Staff/admin users have full access
     - Enrollment owner (student) can access their own enrollment
@@ -37,44 +37,47 @@ class IsEnrollmentOwner(BasePermission):
     """
 
     def has_object_permission(self, request, view, obj):
-        
+
         # Admin/staff have full access
         if request.user.is_staff:
             return True
-        
+
         # Enrollment owner (student) can access their own enrollment
         if obj.user == request.user:
             return True
-        
+
         # Course instructor can view (read-only) enrollments in their course
         if obj.course.instructor == request.user and request.method in SAFE_METHODS:
             return True
-        
+
         return False
-        
+
+
 class IsEnrolledOrInstructor(BasePermission):
     """
     Permission class to control access to lesson progress objects.
-    
+
     Rules:
     - Staff/admin users have full access
     - Enrolled student can access their own lesson progress
     - Course instructor can view (read-only) lesson progress in their course
     - Other users are denied access
     """
-    
+
     def has_object_permission(self, request, view, obj):
         # Admin/staff have full access
         if request.user.is_staff:
             return True
-        
+
         # Enrolled student can access their own lesson progress
         if obj.enrollment.user == request.user:
             return True
-        
+
         # Course instructor can view (read-only) lesson progress in their course
-        if obj.enrollment.course.instructor == request.user and request.method in SAFE_METHODS:
+        if (
+            obj.enrollment.course.instructor == request.user
+            and request.method in SAFE_METHODS
+        ):
             return True
-        
+
         return False
-            

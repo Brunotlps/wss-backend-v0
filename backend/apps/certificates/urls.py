@@ -15,7 +15,7 @@ Routes Generated:
     Automatic (ReadOnlyModelViewSet):
     - GET /api/certificates/              → list certificates (user's own)
     - GET /api/certificates/{id}/         → retrieve certificate detail
-    
+
     Custom Actions (@action decorators):
     - GET /api/certificates/{id}/download/           → download PDF file
     - POST /api/certificates/{id}/validate/          → validate ownership
@@ -26,7 +26,7 @@ Integration:
     - Routes HTTP requests to appropriate view handlers
     - Integrates with main project URL configuration via inclusion
     - Supports standard REST operations with automatic route generation
-    
+
 Notes:
     - Certificates are read-only through API (created via signals)
     - Public validation endpoint requires no authentication
@@ -34,9 +34,10 @@ Notes:
 """
 
 from rest_framework.routers import DefaultRouter
+
 from .views import CertificateViewSet
 
 router = DefaultRouter()
-router.register(r'certificates', CertificateViewSet, basename='certificate')
+router.register(r"certificates", CertificateViewSet, basename="certificate")
 
 urlpatterns = router.urls
