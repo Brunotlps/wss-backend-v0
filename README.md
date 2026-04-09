@@ -1,304 +1,237 @@
-# 🎓 WSS - Video Platform
+# WSS — Web School System
+ 
+> An API-first online course platform built with Django and Django REST Framework.
+ 
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![Django](https://img.shields.io/badge/Django-5.2-092E20?style=flat&logo=django&logoColor=white)](https://www.djangoproject.com/)
+[![DRF](https://img.shields.io/badge/DRF-3.15-A30000?style=flat&logo=django&logoColor=white)](https://www.django-rest-framework.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-336791?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io/)
+[![Celery](https://img.shields.io/badge/Celery-37814A?style=flat&logo=celery&logoColor=white)](https://docs.celeryq.dev/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
+[![Status](https://img.shields.io/badge/Status-In%20Active%20Development-yellow?style=flat)]()
+ 
+---
+ 
+## About the Project
+ 
+**WSS (Web School System)** is an API-first platform for managing and selling online courses, with built-in support for video content, enrollments, certificates, and payments.
+ 
+The project started from a real need: a couple of friends — *Dupla de Milheiros* — who teach personal finance and travel hacking with airline miles, wanted a platform to host their first paid course. What began as a single-tenant solution evolved into an independent, multi-instructor platform aimed at small course creators who want a focused, community-driven alternative to mainstream course marketplaces.
+ 
+The long-term vision is to build **a learning platform centered on community and learning enhancement** — not just a video catalog, but a space where students and instructors interact, collaborate, and grow together.
+ 
+---
+ 
+## Project Status
+ 
+🚧 **In active development** — Sprint 8 of backend implementation (4/8 tasks complete).
+ 
+### What's done
+ 
+- Core domain models and CRUD endpoints (users, courses, videos, enrollments, certificates)
+- JWT authentication with `djangorestframework-simplejwt`
+- Custom user model
+- Settings modularized by environment (`base`, `development`, `production`)
+- Production hardening: HSTS, SSL settings, security headers
+- Video upload with real MIME validation via `python-magic` (not just file extension)
+- Redis-cached `IsEnrolled` permission for performance on protected resources
+- PDF certificate generation with `ReportLab` (unique certificate codes, integrated with the Django model layer)
+- Background task infrastructure with Celery + Redis
+- Sentry integration with LGPD-compliant PII filtering
+- OpenAPI / Swagger documentation via `drf-spectacular`
+- Containerized environment with Docker Compose
+- Test infrastructure with `pytest`, `pytest-django`, and `factory-boy` (target coverage: >80%)
+ 
+### What's next (current sprint)
+ 
+- 🟡 **Payment system (Stripe integration)** — known limitation, currently in active development. The `Course` model already has a `price` field, but full payment verification before enrollment is the focus of the current sprint. See [PAYMENT_SYSTEM_PLAN.md](./backend/planning_deploy/PAYMENT_SYSTEM_PLAN.md) for the detailed design document.
+- 🟡 **Test coverage expansion**
+- 🟡 **PEP8 audit and code quality pass**
+- 🟡 **Production deploy** to a self-managed VPS
 
-Plataforma de cursos em vídeo desenvolvida com Django + Django REST Framework.
-
-## 🚀 Tecnologias
-
-- **Backend**: Django 5.2 + Django REST Framework
-- **Database**: PostgreSQL
-- **Cache/Queue**: Redis
-- **Task Queue**: Celery
-- **Storage**: AWS S3 / Minio
-- **Monitoring**: Sentry (Error tracking & Performance)
-- **Containerization**: Docker + Docker Compose
-
-## 📁 Estrutura do Projeto
-
+ 
+---
+ 
+## Tech Stack
+ 
+**Backend & API**
+- Django 5.2
+- Django REST Framework 3.15
+- `djangorestframework-simplejwt` (JWT auth)
+- `drf-spectacular` (OpenAPI / Swagger documentation)
+ 
+**Data**
+- PostgreSQL (production)
+- SQLite (local development)
+ 
+**Async & Performance**
+- Celery 5.4 (background jobs)
+- Redis (Celery broker + application cache)
+ 
+**File Handling**
+- `python-magic` (MIME type validation for uploads)
+- `ReportLab` (PDF certificate generation)
+ 
+**Quality & Observability**
+- `pytest`, `pytest-django`, `factory-boy` (testing)
+- `flake8`, `black`, `isort`, `pylint` (code quality)
+- Sentry (error monitoring with LGPD-compliant PII filtering)
+ 
+**Infrastructure**
+- Docker + Docker Compose
+- Gunicorn + Nginx (planned for production)
+ 
+---
+ 
+## Architecture Overview
+ 
+The project follows a **modular Django app structure**, where each domain concept lives in its own app with clear boundaries.
+ 
 ```
-wss-backend-v0/
-├── backend/                # Aplicação Django
-│   ├── apps/              # Apps modulares
-│   │   ├── users/         # Gestão de usuários
-│   │   ├── courses/       # Gestão de cursos
-│   │   ├── videos/        # Gestão de vídeos
-│   │   ├── enrollments/   # Matrículas e progresso
-│   │   └── core/          # Utilidades compartilhadas
-│   ├── config/            # Configurações Django
-│   │   └── settings/      # Settings por ambiente
-│   ├── requirements.txt   # Dependências Python
-│   └── Dockerfile         # Imagem Docker
-├── docker-compose.yml     # Orquestração de containers
-├── .env.example           # Template de variáveis de ambiente
-└── README.md
+backend/
+├── apps/
+│   ├── core/             # Shared base models (TimeStampedModel) and utilities
+│   ├── users/            # Custom user model, authentication, profiles
+│   ├── courses/          # Course catalog, modules, lessons
+│   ├── videos/           # Video content + upload validation
+│   ├── enrollments/      # User-course relationships and access control
+│   ├── certificates/     # PDF certificate generation on course completion
+│   └── payments/         # Stripe integration (in active development)
+├── config/
+│   ├── settings/
+│   │   ├── base.py
+│   │   ├── development.py
+│   │   └── production.py
+│   ├── celery.py
+│   ├── urls.py
+│   ├── asgi.py
+│   └── wsgi.py
+├── planning_deploy/      # Architecture and roadmap documentation
+├── conftest.py
+├── Dockerfile
+├── entrypoint.sh
+├── manage.py
+├── pyproject.toml
+└── requirements.txt
 ```
-
-
-## 🛠️ Setup Local
-
-### Pré-requisitos
-- Docker & Docker Compose
-- Python 3.10+
+ 
+**Design principles applied:**
+ 
+- **Models** inherit from a shared `TimeStampedModel` base for consistent `created_at` / `updated_at` tracking.
+- **Views** use `ViewSets` for standard CRUD and `APIView` for custom logic.
+- **Permissions** favor composition over inheritance, with caching where it makes sense (e.g., `IsEnrolled`).
+- **Signals** are kept lightweight — heavy work is delegated to Celery tasks.
+- **Settings** are split per environment, with no secrets in the codebase (all sensitive config via `.env`).
+ 
+---
+ 
+## Technical Highlights
+ 
+A few decisions that go beyond the default Django tutorial:
+ 
+### Real MIME validation on uploads
+Files are validated by reading their actual content with `python-magic`, not just by trusting the file extension. This prevents users from uploading executables disguised as videos.
+ 
+### Cached permission checks
+The `IsEnrolled` permission — which runs on every request to enrollment-protected resources — is cached in Redis to avoid repeated database hits on hot paths.
+ 
+### Asynchronous heavy work via Celery
+Operations that are slow or prone to failure (like PDF generation, email sending, and future payment confirmations) run as Celery tasks instead of blocking the request cycle.
+ 
+### LGPD-aware error monitoring
+Sentry integration filters out personally identifiable information before events are sent, keeping observability without leaking user data — a requirement under Brazilian data protection law.
+ 
+### Production-ready settings from day one
+Even in active development, `production.py` enforces HSTS, SSL redirect, secure cookies, and other security headers. The intent is that "going to production" should not require a security audit at the last moment.
+ 
+### Test-Driven Development
+The project follows a TDD workflow (RED → GREEN → REFACTOR) with a >80% coverage target enforced in `pytest.ini`. Test data is built with `factory-boy` factories instead of fragile fixtures.
+ 
+---
+ 
+## Getting Started
+ 
+### Prerequisites
+ 
+- Docker and Docker Compose
 - Git
-
-### Instalação
-
-1. **Clone o repositório**
+ 
+### Running locally
+ 
 ```bash
-git clone <repo-url>
+# Clone the repository
+git clone https://github.com/Brunotlps/wss-backend-v0.git
 cd wss-backend-v0
+ 
+# Set up environment variables
+cp backend/.env.example backend/.env
+# Edit backend/.env with your local values
+ 
+# Build and start the containers
+docker compose up --build
+ 
+# In another terminal, run migrations
+docker compose exec backend python manage.py migrate
+ 
+# (Optional) Create a superuser
+docker compose exec backend python manage.py createsuperuser
 ```
-
-2. **Configure as variáveis de ambiente**
+ 
+The API will be available at `http://localhost:8000/`.
+Interactive API documentation (Swagger) at `http://localhost:8000/api/schema/swagger-ui/`.
+ 
+### Running tests
+ 
 ```bash
-cp .env.example .env
-# Edite o arquivo .env com suas configurações
+# All tests
+docker compose exec backend pytest
+ 
+# With coverage report
+docker compose exec backend pytest --cov=apps --cov-report=html
+ 
+# Specific app
+docker compose exec backend pytest apps/enrollments/
 ```
+ 
+---
+ 
+## Roadmap
+ 
+### Short term (current sprint)
+- Complete Stripe payment integration with webhook verification
+- Expand automated test coverage on payment flows
+- First production deploy on a self-managed VPS
+ 
+### Medium term
+- Frontend implementation (React)
+- Private beta with *Dupla de Milheiros* as the first real instructors
+- Public launch with companion ebook
+ 
+### Long term
+- **Course community tab** — discussions and Q&A tied to each course
+- **Live classes** — real-time sessions with students
+- **Instructor dashboard** — analytics, student progress, content management
+- Multi-instructor platform with a strong focus on **community and learning outcomes**, rather than catalog volume
+ 
+For more detailed planning documents, see [`backend/planning_deploy/`](./backend/planning_deploy/).
+ 
+---
+ 
+## About the Author
+ 
+Built and maintained by **Bruno Teixeira Lopes** — a backend developer from Brazil focused on building real, maintainable systems. WSS is the project where I bring together everything I'm learning about backend engineering: architecture, async processing, security, observability, and deploying real software to real users.
+ 
+[![GitHub](https://img.shields.io/badge/GitHub-100000?style=flat&logo=github&logoColor=white)](https://github.com/Brunotlps)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=flat&logo=linkedin&logoColor=white)](https://linkedin.com/in/brunotlps)
+[![Email](https://img.shields.io/badge/Email-D14836?style=flat&logo=gmail&logoColor=white)](mailto:brunoteixlps@gmail.com)
+ 
+---
+ 
+⭐ *This is an active learning and engineering project. Feedback, ideas, and questions are welcome — open an issue or reach out directly.*
 
-3. **Inicie os containers**
-```bash
-docker-compose up -d
-```
+---
 
-4. **Execute as migrações**
-```bash
-docker-compose exec backend python manage.py migrate
-```
+## License
 
-5. **Acesse a aplicação**
-- API: http://localhost:8000/api/
-- Admin: http://localhost:8000/admin/
-- API Docs: http://localhost:8000/api/docs/
-
-
-## 📜 API de Certificados
-
-Sistema completo de geração e validação de certificados de conclusão de curso.
-
-### Endpoints Disponíveis
-
-#### 1. Listar Certificados do Usuário
-```http
-GET /api/certificates/
-Authorization: Bearer {token}
-```
-Lista todos os certificados do usuário autenticado com paginação.
-
-**Response (200 OK):**
-```json
-{
-  "count": 1,
-  "next": null,
-  "previous": null,
-  "results": [
-    {
-      "id": 2,
-      "certificate_code": "WSS-2026-PD0UL3",
-      "student_name": "Aluno Teste",
-      "course_title": "Curso Teste Certificados",
-      "instructor_name": "Instrutor Teste",
-      "completion_date": "2026-03-28",
-      "pdf_url": "http://localhost:5600/media/certificates/2026/03/WSS-2026-PD0UL3.pdf",
-      "is_valid": true
-    }
-  ]
-}
-```
-
-#### 2. Detalhes do Certificado
-```http
-GET /api/certificates/{id}/
-Authorization: Bearer {token}
-```
-Retorna detalhes de um certificado específico do usuário.
-
-#### 3. Download do PDF
-```http
-GET /api/certificates/{id}/download/
-Authorization: Bearer {token}
-```
-Download direto do arquivo PDF do certificado (5-10 KB).
-
-**Response Headers:**
-```
-Content-Type: application/pdf
-Content-Disposition: attachment; filename="certificate_WSS-2026-PD0UL3.pdf"
-```
-
-#### 4. Validar Propriedade (Autenticado)
-```http
-POST /api/certificates/{id}/validate/
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{}
-```
-Valida se o certificado pertence ao usuário autenticado.
-
-**Response (200 OK):**
-```json
-{
-  "valid": true,
-  "message": "Certificate belongs to you",
-  "certificate_code": "WSS-2026-PD0UL3"
-}
-```
-
-#### 5. Validação Pública por Código
-```http
-GET /api/certificates/validate/{certificate_code}/
-```
-**Endpoint público** (sem autenticação) para validar um certificado pelo código.
-
-**Exemplo:**
-```http
-GET /api/certificates/validate/WSS-2026-PD0UL3/
-```
-
-**Response (200 OK):**
-```json
-{
-  "valid": true,
-  "message": "Certificate is valid",
-  "certificate_code": "WSS-2026-PD0UL3",
-  "student_name": "Aluno Teste"
-}
-```
-
-### Autenticação
-
-A maioria dos endpoints requer autenticação JWT:
-
-1. **Obter token:**
-```http
-POST /api/auth/token/
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "senha123"
-}
-```
-
-2. **Usar o token:**
-```http
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-### Geração Automática
-
-Certificados são gerados automaticamente quando:
-- Usuário completa um curso (enrollment.completed = True)
-- Via signal `post_save` no modelo `Enrollment`
-- PDF gerado em background com ReportLab
-- Armazenado em: `media/certificates/{year}/{month}/{code}.pdf`
-
-### Performance
-
-- **Response Time**: 20-40ms média
-- **SQL Queries**: 1-3 por request (otimizado com select_related)
-- **PDF Size**: ~5-10 KB por certificado
-- **Formato**: A4 Landscape, 300 DPI
-
-
-## 🧪 Testes
-
-### Testes Postman
-API de certificados validada com 28 testes automatizados:
-- ✅ Request 1 (List): 4/4 testes
-- ✅ Request 2 (Details): 6/6 testes
-- ✅ Request 3 (Download): 5/5 testes
-- ✅ Request 4 (Validate): 6/6 testes
-- ✅ Request 5 (Public): 7/7 testes
-
-**Total: 28/28 testes passando (100%)**
-
-[Deixar a collection no final]
-[Implementar testes automatizados]
-
-
-## � Monitoramento e Rastreamento de Erros
-
-### Sentry Integration
-
-O projeto utiliza **Sentry** para monitoramento de erros em tempo real e rastreamento de performance.
-
-#### Funcionalidades
-
-- **Error Tracking**: Captura automática de exceções não tratadas
-- **Performance Monitoring**: Rastreamento de transações e queries lentas
-- **Release Tracking**: Versionamento de deploys para rastreabilidade
-- **Environment Separation**: Ambientes isolados (development/staging/production)
-- **PII Filtering**: Remoção automática de dados sensíveis (LGPD compliance)
-
-#### Configuração
-
-1. **Obtenha seu DSN do Sentry:**
-   - Acesse https://sentry.io
-   - Crie um novo projeto Django
-   - Copie o DSN fornecido
-
-2. **Configure as variáveis de ambiente:**
-```bash
-# .env ou .env.local
-SENTRY_DSN=https://your-key@o123456.ingest.sentry.io/789012
-ENVIRONMENT=development  # production | staging | development
-RELEASE_VERSION=1.0.0
-```
-
-3. **Integrado automaticamente com:**
-   - Django (views, middlewares, signals)
-   - Redis (cache operations)
-   - Celery (background tasks)
-
-#### Dados Filtrados (Segurança)
-
-O sistema filtra automaticamente dados sensíveis antes de enviar ao Sentry:
-- Headers: `Authorization`, `Cookie`, `X-Api-Key`
-- Request data: `password`, `token`, `secret`, `cpf`
-- Configuração: `send_default_pii=False`
-
-#### Performance
-
-- **Development**: 100% de transações rastreadas (`traces_sample_rate=1.0`)
-- **Production**: 10% de transações rastreadas (`traces_sample_rate=0.1`)
-
-#### Verificação
-
-Para verificar se a integração está funcionando:
-```bash
-# Em desenvolvimento, acesse qualquer endpoint inexistente
-curl http://localhost:8000/api/test-404/
-
-# Verifique no dashboard do Sentry em 5-10 segundos
-```
-
-Dashboard: https://sentry.io/organizations/your-org/issues/
-
-
-## 📝 Licença
-
-Este projeto está licenciado sob a [MIT License](LICENSE).
-
-```
-MIT License
-
-Copyright (c) 2026 Brunotlps
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+This project is licensed under the [MIT License](LICENSE).
