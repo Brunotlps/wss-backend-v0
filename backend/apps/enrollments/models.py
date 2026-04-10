@@ -46,11 +46,13 @@ class Enrollment(TimeStampedModel):
       certificate_issued (BooleanField): Whether certificate was generated.
       rating (PositiveSmallIntegerField): Student's course rating (1-5 stars).
       review (TextField): Written review/feedback from student.
+      payment (OneToOneField): Linked Payment record. Null for free courses.
 
     Notes:
       - user + course must be unique (can't enroll twice in same course)
       - Use signals to auto-mark completed when all lessons are done
       - certificate_issued triggers certificate generation task
+      - payment is null for free courses; required for paid courses
     """
 
     user = models.ForeignKey(
@@ -108,6 +110,16 @@ class Enrollment(TimeStampedModel):
 
     review = models.TextField(
         _("review"), blank=True, help_text=_("Written review/feedback from student")
+    )
+
+    payment = models.OneToOneField(
+        "payments.Payment",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollment",
+        verbose_name=_("payment"),
+        help_text=_("Payment record for this enrollment (null for free courses)"),
     )
 
     class Meta:
