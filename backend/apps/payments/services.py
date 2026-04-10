@@ -72,7 +72,10 @@ class StripeService:
                     "course_title": course.title,
                 },
                 description=f"Enrollment: {course.title}",
-                automatic_payment_methods={"enabled": True},
+                automatic_payment_methods={
+                    "enabled": True,
+                    "allow_redirects": "never",
+                },
             )
 
             logger.info(
