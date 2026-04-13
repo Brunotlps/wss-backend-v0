@@ -26,6 +26,7 @@ from .models import Payment
 from .permissions import IsPaymentOwner
 from .serializers import PaymentIntentRequestSerializer, PaymentSerializer
 from .services import StripeService
+from .throttles import PaymentIntentRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,12 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated, IsPaymentOwner]
+
+    def get_throttles(self):
+        """Apply payment intent throttle only to the create-intent action."""
+        if self.action == "create_intent":
+            return [PaymentIntentRateThrottle()]
+        return super().get_throttles()
 
     def get_queryset(self):
         """Staff see all payments; others see only their own."""

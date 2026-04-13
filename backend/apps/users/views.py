@@ -12,9 +12,11 @@ from rest_framework import status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import Profile, User
 from .permissions import IsOwnerOrReadOnly
+from .throttles import LoginRateThrottle
 from .serializers import (
     ProfileSerializer,
     UserDetailSerializer,
@@ -22,6 +24,12 @@ from .serializers import (
     UserRegistrationSerializer,
     UserUpdateSerializer,
 )
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    """Login view with rate limiting: 5 attempts per hour per IP."""
+
+    throttle_classes = [LoginRateThrottle]
 
 
 class UserRegistrationView(APIView):
