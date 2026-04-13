@@ -405,9 +405,7 @@ class EnrollmentUpdateSerializer(serializers.ModelSerializer):
     """
 
     # @property from Enrollment model (useful for frontend after update)
-    progress_percentage = serializers.FloatField(
-        source="progress_percentage", read_only=True
-    )
+    progress_percentage = serializers.FloatField(read_only=True)
 
     class Meta:
         model = Enrollment
@@ -424,7 +422,7 @@ class EnrollmentUpdateSerializer(serializers.ModelSerializer):
 
     def validate_rating(self, value):
         """
-        Validate rating is within 1-5 range.
+        Validate rating is within 1-5 range and course is completed.
 
         Field-level validation (Nível 1).
 
@@ -435,10 +433,16 @@ class EnrollmentUpdateSerializer(serializers.ModelSerializer):
             int or None: Validated rating
 
         Raises:
-            ValidationError: If rating is out of range
+            ValidationError: If rating is out of range or course not completed
         """
-        if value is not None and (value < 1 or value > 5):
+        if value is None:
+            return value
+        if value < 1 or value > 5:
             raise serializers.ValidationError("Rating must be between 1 and 5 stars.")
+        if self.instance and not self.instance.completed:
+            raise serializers.ValidationError(
+                "You can only rate a course after completing it."
+            )
         return value
 
     def validate(self, attrs):

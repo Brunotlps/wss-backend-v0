@@ -9,7 +9,9 @@ Provides shared fixtures used across all apps:
 """
 
 import pytest
+from django.core.cache import cache
 from rest_framework.test import APIClient
+
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -65,3 +67,9 @@ def staff_client(db):
     client.force_authenticate(user=staff)
     client.user = staff
     return client
+
+@pytest.fixture(autouse=True)
+def clear_cache():
+    cache.clear()
+    yield
+    cache.clear()
