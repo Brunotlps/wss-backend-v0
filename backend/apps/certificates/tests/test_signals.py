@@ -13,7 +13,7 @@ from apps.enrollments.factories import EnrollmentFactory
 class TestCreateCertificateOnCompletion:
     """Test the post_save signal that auto-generates certificates."""
 
-    @patch("apps.certificates.signals.generate_certificate_pdf")
+    @patch("apps.certificates.tasks.generate_certificate_pdf")
     def test_certificate_created_when_enrollment_completed(self, mock_pdf):
         """Certificate is created when enrollment.completed becomes True."""
         mock_pdf.return_value = "certificates/2026/01/WSS-2026-ABC123.pdf"
@@ -23,7 +23,7 @@ class TestCreateCertificateOnCompletion:
         enrollment.save()
         assert Certificate.objects.filter(enrollment=enrollment).exists()
 
-    @patch("apps.certificates.signals.generate_certificate_pdf")
+    @patch("apps.certificates.tasks.generate_certificate_pdf")
     def test_certificate_not_duplicated_on_second_save(self, mock_pdf):
         """Signal does not create duplicate certificate on subsequent saves."""
         mock_pdf.return_value = "certificates/2026/01/WSS-2026-ABC123.pdf"
@@ -50,7 +50,7 @@ class TestCreateCertificateOnCompletion:
         enrollment.save()
         assert not Certificate.objects.filter(enrollment=enrollment).exists()
 
-    @patch("apps.certificates.signals.generate_certificate_pdf")
+    @patch("apps.certificates.tasks.generate_certificate_pdf")
     def test_pdf_generation_called_with_certificate(self, mock_pdf):
         """PDF generation function is called with the created certificate."""
         mock_pdf.return_value = "certificates/2026/01/WSS-2026-ABC123.pdf"
@@ -61,7 +61,7 @@ class TestCreateCertificateOnCompletion:
         cert = Certificate.objects.get(enrollment=enrollment)
         mock_pdf.assert_called_once_with(cert)
 
-    @patch("apps.certificates.signals.generate_certificate_pdf")
+    @patch("apps.certificates.tasks.generate_certificate_pdf")
     def test_certificate_is_valid_after_pdf_generation(self, mock_pdf):
         """Certificate.is_valid is True after successful PDF generation."""
         mock_pdf.return_value = "certificates/2026/01/WSS-2026-ABC123.pdf"
@@ -73,7 +73,7 @@ class TestCreateCertificateOnCompletion:
         cert.refresh_from_db()
         assert cert.is_valid is True
 
-    @patch("apps.certificates.signals.generate_certificate_pdf")
+    @patch("apps.certificates.tasks.generate_certificate_pdf")
     def test_certificate_pdf_generation_failure_marks_failed_at(self, mock_pdf):
         """When PDF generation fails, pdf_generation_failed_at is set."""
         mock_pdf.side_effect = Exception("ReportLab error")

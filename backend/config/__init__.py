@@ -3,8 +3,6 @@
 # This initializes Celery automatically
 # Allows using @shared_task in any app
 
-# TODO: Uncomment when Celery is installed (pip install celery)
-# from .celery import app as celery_app
-# __all__ = ('celery_app',)
+from .celery import app as celery_app
 
-__all__ = ()
+__all__ = ("celery_app",)

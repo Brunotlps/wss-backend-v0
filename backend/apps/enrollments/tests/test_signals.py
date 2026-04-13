@@ -12,7 +12,7 @@ from apps.videos.factories import LessonFactory
 class TestCheckCourseCompletion:
     """Test the post_save signal that auto-completes enrollment."""
 
-    @patch("apps.certificates.signals.generate_certificate_pdf")
+    @patch("apps.certificates.tasks.generate_certificate_pdf")
     def test_completing_last_lesson_auto_completes_enrollment(self, mock_pdf):
         """Completing the final lesson marks the enrollment as completed."""
         mock_pdf.return_value = "certificates/test.pdf"
@@ -52,7 +52,7 @@ class TestCheckCourseCompletion:
         enrollment.refresh_from_db()
         assert not enrollment.completed
 
-    @patch("apps.certificates.signals.generate_certificate_pdf")
+    @patch("apps.certificates.tasks.generate_certificate_pdf")
     def test_already_completed_enrollment_not_re_triggered(self, mock_pdf):
         """Signal does not call mark_as_completed again if already completed."""
         mock_pdf.return_value = "certificates/test.pdf"
