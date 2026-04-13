@@ -7,6 +7,8 @@ from rest_framework import status
 from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory, LessonProgressFactory
 from apps.enrollments.models import Enrollment
+from apps.payments.factories import PaymentFactory
+from apps.payments.models import Payment
 from apps.users.factories import InstructorFactory, UserFactory
 from apps.videos.factories import LessonFactory
 
@@ -56,11 +58,49 @@ class TestEnrollmentViewSet:
 
     def test_create_enrollment_sets_user_to_current(self, auth_client):
         """Creating enrollment auto-assigns authenticated user."""
-        course = CourseFactory()
+        course = CourseFactory(free=True)
         response = auth_client.post(self.URL, {"course_id": course.pk})
         assert response.status_code == status.HTTP_201_CREATED
         enrollment = Enrollment.objects.get(pk=response.data["id"])
         assert enrollment.user == auth_client.user
+
+    def test_create_enrollment_free_course_returns_201(self, auth_client):
+        """Free course can be enrolled without any payment."""
+        course = CourseFactory(free=True)
+        response = auth_client.post(self.URL, {"course_id": course.pk})
+        assert response.status_code == status.HTTP_201_CREATED
+
+    def test_create_enrollment_paid_course_without_payment_returns_402(self, auth_client):
+        """Paid course requires a successful payment before enrollment."""
+        course = CourseFactory()
+        response = auth_client.post(self.URL, {"course_id": course.pk})
+        assert response.status_code == status.HTTP_402_PAYMENT_REQUIRED
+
+    def test_create_enrollment_paid_course_with_succeeded_payment_returns_201(
+        self, auth_client
+    ):
+        """Paid course can be enrolled after a successful payment."""
+        course = CourseFactory()
+        PaymentFactory(
+            user=auth_client.user,
+            course=course,
+            status=Payment.Status.SUCCEEDED,
+        )
+        response = auth_client.post(self.URL, {"course_id": course.pk})
+        assert response.status_code == status.HTTP_201_CREATED
+
+    def test_create_enrollment_paid_course_with_pending_payment_returns_402(
+        self, auth_client
+    ):
+        """Pending payment does not grant enrollment access."""
+        course = CourseFactory()
+        PaymentFactory(
+            user=auth_client.user,
+            course=course,
+            status=Payment.Status.PENDING,
+        )
+        response = auth_client.post(self.URL, {"course_id": course.pk})
+        assert response.status_code == status.HTTP_402_PAYMENT_REQUIRED
 
     def test_retrieve_own_enrollment(self, auth_client):
         """Student can retrieve their own enrollment."""

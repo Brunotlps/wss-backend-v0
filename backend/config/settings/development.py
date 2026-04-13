@@ -67,6 +67,11 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 CORS_ALLOW_ALL_ORIGINS = True
 
 
+# Celery — execute tasks synchronously in development and tests
+# Tasks run inline via .delay() without requiring a running worker.
+CELERY_TASK_ALWAYS_EAGER = True
+
+
 # Logging Configuration for Development
 LOGGING = {
     'version': 1,
