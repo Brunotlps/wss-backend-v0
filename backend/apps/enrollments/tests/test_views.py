@@ -138,6 +138,32 @@ class TestEnrollmentViewSet:
         response = auth_client.get(self.URL, {"search": "Django"})
         assert response.data["count"] == 1
 
+    def test_rating_on_completed_enrollment_returns_200(self, auth_client):
+        """Rating a completed enrollment is allowed."""
+        enrollment = EnrollmentFactory(user=auth_client.user, completed=True)
+        response = auth_client.patch(
+            f"{self.URL}{enrollment.pk}/", {"rating": 5}, format="json"
+        )
+        assert response.status_code == status.HTTP_200_OK
+        enrollment.refresh_from_db()
+        assert enrollment.rating == 5
+
+    def test_rating_on_incomplete_enrollment_returns_400(self, auth_client):
+        """Rating an incomplete enrollment is rejected with 400."""
+        enrollment = EnrollmentFactory(user=auth_client.user, completed=False)
+        response = auth_client.patch(
+            f"{self.URL}{enrollment.pk}/", {"rating": 4}, format="json"
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_rating_none_on_incomplete_enrollment_is_allowed(self, auth_client):
+        """Clearing a rating (None) is always allowed, even on incomplete enrollment."""
+        enrollment = EnrollmentFactory(user=auth_client.user, completed=False, rating=3)
+        response = auth_client.patch(
+            f"{self.URL}{enrollment.pk}/", {"rating": None}, format="json"
+        )
+        assert response.status_code == status.HTTP_200_OK
+
 
 @pytest.mark.django_db
 class TestLessonProgressViewSet:

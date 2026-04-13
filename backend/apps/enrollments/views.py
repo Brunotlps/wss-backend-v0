@@ -36,6 +36,7 @@ from .permissions import IsEnrolledOrInstructor, IsEnrollmentOwner
 from .serializers import (
     EnrollmentDetailSerializer,
     EnrollmentListSerializer,
+    EnrollmentUpdateSerializer,
     LessonProgressSerializer,
 )
 
@@ -88,6 +89,8 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "list":
             return EnrollmentListSerializer
+        if self.action in ["update", "partial_update"]:
+            return EnrollmentUpdateSerializer
         return EnrollmentDetailSerializer
 
     def get_queryset(self):
