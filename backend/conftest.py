@@ -12,6 +12,19 @@ import pytest
 from rest_framework.test import APIClient
 
 
+@pytest.fixture(scope="session", autouse=True)
+def disable_sentry():
+    """Disable Sentry for the entire test session.
+
+    Prevents error-simulating tests from sending real alerts to Sentry.
+    The SENTRY_DSN from .env is active in development settings, so without
+    this fixture every logger.error() call in tested views fires a real event.
+    """
+    import sentry_sdk
+
+    sentry_sdk.init("")
+
+
 @pytest.fixture
 def api_client():
     """Return unauthenticated DRF API client."""

@@ -23,6 +23,8 @@ from drf_spectacular.views import (
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from apps.payments.views import StripeWebhookView
+
 @api_view(['GET'])
 def health_check(request):
     """Health check endpoint to verify API is running"""
@@ -54,6 +56,10 @@ urlpatterns = [
     path('api/', include('apps.videos.urls')),  # Includes both /videos/ and /lessons/ routes
     path('api/', include('apps.enrollments.urls')),
     path('api/', include('apps.certificates.urls')),
+    path('api/', include('apps.payments.urls')),
+
+    # Stripe Webhook (public endpoint — auth via HMAC signature)
+    path('api/webhooks/stripe/', StripeWebhookView.as_view(), name='stripe-webhook'),
 ]
 
 # Django Debug Toolbar (dev only)
