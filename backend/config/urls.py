@@ -20,19 +20,8 @@ from drf_spectacular.views import (
   SpectacularRedocView,
 )
 
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-
+from apps.core.views import health_check
 from apps.payments.views import StripeWebhookView
-
-@api_view(['GET'])
-def health_check(request):
-    """Health check endpoint to verify API is running"""
-    return Response({
-        'status': 'ok',
-        'message': 'WSS Backend API is running!',
-        'version': '1.0.0'
-    })
 
 urlpatterns = [
    
