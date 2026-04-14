@@ -77,6 +77,9 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     zlib1g-dev \
     netcat-openbsd \
+    curl \
+    libmagic1 \
+    file \
     && rm -rf /var/lib/apt/lists/*
 
 # Copia o arquivo de requirements
@@ -91,9 +94,6 @@ COPY . /app/
 
 # Expõe a porta 8000
 EXPOSE 8000
-
-# Comando padrão (será sobrescrito pelo docker-compose)
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh
