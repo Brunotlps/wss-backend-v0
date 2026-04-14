@@ -72,3 +72,4 @@ wcwidth==0.6.0
 whitenoise==6.8.2
 sentry-sdk==2.0.0
 stripe==8.5.0
+gunicorn==23.0.0

@@ -92,9 +92,6 @@ COPY . /app/
 # Expõe a porta 8000
 EXPOSE 8000
 
-# Comando padrão (será sobrescrito pelo docker-compose)
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
-
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
