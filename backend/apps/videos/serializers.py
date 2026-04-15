@@ -132,13 +132,14 @@ class VideoListSerializer(serializers.ModelSerializer):
         - title: Video title
         - duration_formatted: Human-readable duration (HH:MM:SS)
         - thumbnail: Preview image URL
+        - file: Video file URL (required by the frontend player)
     """
 
     duration_formatted = serializers.CharField(read_only=True)
 
     class Meta:
         model = Video
-        fields = ["id", "title", "duration_formatted", "thumbnail"]
+        fields = ["id", "title", "duration_formatted", "thumbnail", "file"]
 
 
 class LessonListSerializer(serializers.ModelSerializer):
