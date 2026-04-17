@@ -92,13 +92,12 @@ services:
     container_name: wss_nginx
     ports:
       - "80:80"
-      # Port 443 is handled at the server level via Certbot/Let's Encrypt.
-      # After obtaining a certificate, uncomment the HTTPS block in nginx/nginx.conf
-      # and add: - "443:443"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - static_volume:/app/staticfiles:ro
       - media_volume:/app/media:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       backend:
         condition: service_healthy
