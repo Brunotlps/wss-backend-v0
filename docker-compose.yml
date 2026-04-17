@@ -63,8 +63,6 @@ services:
       - media_volume:/app/media
     env_file:
       - .env
-    environment:
-      - DJANGO_SETTINGS_MODULE=${DJANGO_SETTINGS_MODULE:-config.settings.development}
     depends_on:
       db:
         condition: service_healthy
