@@ -3,7 +3,7 @@
 import factory
 from factory.django import DjangoModelFactory
 
-from .models import Profile, User
+from .models import Profile, SocialAccount, User
 
 
 class UserFactory(DjangoModelFactory):
@@ -46,3 +46,22 @@ class ProfileFactory(DjangoModelFactory):
 
     user = factory.SubFactory(UserFactory)
     bio = factory.Faker("paragraph", nb_sentences=2)
+
+
+class SocialAccountFactory(DjangoModelFactory):
+    """Factory for SocialAccount (Google OAuth link)."""
+
+    class Meta:
+        model = SocialAccount
+
+    user = factory.SubFactory(UserFactory)
+    provider = SocialAccount.Provider.GOOGLE
+    uid = factory.Sequence(lambda n: f"google-sub-{n:06d}")
+    extra_data = factory.LazyAttribute(
+        lambda o: {
+            "email": o.user.email,
+            "name": o.user.get_full_name(),
+            "picture": "",
+            "email_verified": True,
+        }
+    )

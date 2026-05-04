@@ -4,6 +4,7 @@ User models for WSS Backend.
 This module contains user-related models including:
 - Custom User model extending Django's AbstractUser
 - Profile model for additional user information
+- SocialAccount model for OAuth provider links (Google, etc.)
 
 The User model is configured as the AUTH_USER_MODEL in settings.py.
 """
@@ -171,3 +172,53 @@ class Profile(TimeStampedModel):
 
     def __str__(self):
         return f"Profile of {self.user.get_full_name()}"
+
+
+class SocialAccount(TimeStampedModel):
+    """OAuth provider link for a user.
+
+    Stores the relationship between a local User and an external OAuth
+    provider identity (e.g. Google). One user may have multiple entries
+    if they link different providers.
+
+    Attributes:
+        user: The local user this account belongs to.
+        provider: OAuth provider identifier (e.g. 'google').
+        uid: The provider's immutable user identifier (Google's 'sub' claim).
+        extra_data: Snapshot of profile data from the provider (name, email, picture).
+    """
+
+    class Provider(models.TextChoices):
+        GOOGLE = "google", "Google"
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="social_accounts",
+        verbose_name=_("user"),
+    )
+    provider = models.CharField(
+        _("provider"),
+        max_length=50,
+        choices=Provider.choices,
+        db_index=True,
+    )
+    uid = models.CharField(
+        _("provider user ID"),
+        max_length=255,
+        help_text=_("Immutable identifier from the provider (e.g. Google 'sub' claim)."),
+    )
+    extra_data = models.JSONField(
+        _("extra data"),
+        default=dict,
+        blank=True,
+        help_text=_("Snapshot of profile fields from the provider."),
+    )
+
+    class Meta:
+        verbose_name = _("social account")
+        verbose_name_plural = _("social accounts")
+        unique_together = [["provider", "uid"]]
+
+    def __str__(self) -> str:
+        return f"{self.provider} — {self.user.email}"

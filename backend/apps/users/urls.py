@@ -39,6 +39,8 @@ from rest_framework_simplejwt.views import (
 from .views import (
     CurrentUserView,
     CustomTokenObtainPairView,
+    GoogleCallbackView,
+    GoogleLoginView,
     ProfileViewSet,
     UserRegistrationView,
     UserViewSet,
@@ -54,5 +56,7 @@ urlpatterns = [
     path("auth/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     path("auth/token/blacklist/", TokenBlacklistView.as_view(), name="token_blacklist"),
+    path("auth/google/", GoogleLoginView.as_view(), name="google-login"),
+    path("auth/google/callback/", GoogleCallbackView.as_view(), name="google-callback"),
     path("", include(router.urls)),
 ]

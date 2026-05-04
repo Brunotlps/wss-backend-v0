@@ -6,7 +6,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.translation import gettext_lazy as _
 
-from .models import Profile, User
+from .models import Profile, SocialAccount, User
 
 
 @admin.register(User)
@@ -84,11 +84,26 @@ class ProfileAdmin(admin.ModelAdmin):
             _("Social Links"),
             {
                 "fields": ("website", "linkedin", "instagram"),
-                "classes": ("collapse",),  # Collapsed by default
+                "classes": ("collapse",),
             },
         ),
         (
             _("Timestamps"),
             {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
+    )
+
+
+@admin.register(SocialAccount)
+class SocialAccountAdmin(admin.ModelAdmin):
+
+    list_display = ("user", "provider", "uid", "created_at")
+    list_filter = ("provider", "created_at")
+    search_fields = ("user__email", "uid")
+    readonly_fields = ("created_at", "updated_at", "uid", "provider", "extra_data")
+
+    fieldsets = (
+        (_("Link"), {"fields": ("user", "provider", "uid")}),
+        (_("Provider Data"), {"fields": ("extra_data",), "classes": ("collapse",)}),
+        (_("Timestamps"), {"fields": ("created_at", "updated_at"), "classes": ("collapse",)}),
     )
