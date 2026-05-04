@@ -6,17 +6,23 @@ This module implements the API endpoints for:
 - Authentication and logged-in user profile management
 - Complete CRUD of users (with permissions)
 - User profile management
+- Google OAuth 2.0 + OIDC login
 """
+
+import logging
+
+from django.conf import settings
+from django.shortcuts import redirect
 
 from rest_framework import status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import Profile, User
 from .permissions import IsOwnerOrReadOnly
-from .throttles import LoginRateThrottle
 from .serializers import (
     ProfileSerializer,
     UserDetailSerializer,
@@ -24,6 +30,10 @@ from .serializers import (
     UserRegistrationSerializer,
     UserUpdateSerializer,
 )
+from .services.google_oauth import GoogleOAuthService
+from .throttles import LoginRateThrottle
+
+logger = logging.getLogger(__name__)
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -237,3 +247,66 @@ class ProfileViewSet(viewsets.ModelViewSet):
     queryset = Profile.objects.select_related("user")
     serializer_class = ProfileSerializer
     permission_classes = [IsOwnerOrReadOnly]
+
+
+class GoogleLoginView(APIView):
+    """Initiate the Google OAuth 2.0 Authorization Code flow.
+
+    Generates a cryptographically random state and nonce, stores them in
+    the session, then redirects the user to Google's authorization endpoint.
+
+    Permissions:
+        AllowAny — public endpoint, no authentication required.
+
+    Endpoints:
+        GET /api/auth/google/
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        """Redirect to Google authorization URL."""
+        url = GoogleOAuthService().get_authorization_url(request)
+        return redirect(url)
+
+
+class GoogleCallbackView(APIView):
+    """Handle the OAuth callback from Google.
+
+    Validates the state parameter, exchanges the authorization code for
+    tokens, validates the id_token, finds or creates the local User, then
+    issues a JWT pair and redirects the frontend via URL fragment.
+
+    Permissions:
+        AllowAny — called by Google's redirect, no prior auth.
+
+    Endpoints:
+        GET /api/auth/google/callback/
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        """Process Google callback and redirect frontend with JWT tokens."""
+        code = request.GET.get("code")
+        state = request.GET.get("state")
+
+        if not code or not state:
+            logger.warning("Google callback missing code or state params.")
+            return redirect(f"{settings.FRONTEND_URL}/auth/error?reason=missing_params")
+
+        try:
+            user = GoogleOAuthService().handle_callback(request, code=code, state=state)
+        except ValueError as exc:
+            logger.warning("Google OAuth callback failed: %s", exc)
+            return redirect(f"{settings.FRONTEND_URL}/auth/error?reason=oauth_failed")
+
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
+        refresh_token = str(refresh)
+
+        # Fragment (#) — never sent to the server, not logged by Nginx
+        return redirect(
+            f"{settings.FRONTEND_URL}/auth/callback"
+            f"#access={access_token}&refresh={refresh_token}"
+        )

@@ -260,3 +260,17 @@ STRIPE_SECRET_KEY = env('STRIPE_SECRET_KEY', default='')
 STRIPE_WEBHOOK_SECRET = env('STRIPE_WEBHOOK_SECRET', default='')
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutos
+
+
+# Google OAuth 2.0 + OIDC
+# https://developers.google.com/identity/openid-connect/openid-connect
+
+GOOGLE_OAUTH_CLIENT_ID = env('GOOGLE_OAUTH_CLIENT_ID', default='')
+GOOGLE_OAUTH_CLIENT_SECRET = env('GOOGLE_OAUTH_CLIENT_SECRET', default='')
+GOOGLE_OAUTH_REDIRECT_URI = env(
+    'GOOGLE_OAUTH_REDIRECT_URI',
+    default='http://localhost:8000/api/auth/google/callback/',
+)
+
+# Frontend URL used for post-auth redirect
+FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:3000')
