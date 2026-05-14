@@ -57,14 +57,20 @@ from django_filters.rest_framework import DjangoFilterBackend
 from apps.videos.serializers import LessonListSerializer
 
 from .filters import CourseFilter
-from .models import Category, Course
-from .permissions import IsCourseOwnerOrReadOnly, IsInstructorOrReadOnly
+from .models import Category, Course, Module
+from .permissions import (
+    IsCourseOwnerOrReadOnly,
+    IsInstructorOrReadOnly,
+    IsModuleCourseInstructorOrReadOnly,
+)
 from .serializers import (
     CategorySerializer,
     CourseCreateSerializer,
     CourseDetailSerializer,
     CourseListSerializer,
     CourseUpdateSerializer,
+    ModuleSerializer,
+    ModuleWithLessonsSerializer,
 )
 
 
@@ -322,3 +328,51 @@ class CourseViewSet(viewsets.ModelViewSet):
         serializer = LessonListSerializer(lessons, many=True)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
+    def modules(self, request, pk=None):
+        """
+        Retrieve all modules of a course with nested lessons.
+
+        Endpoint: GET /api/courses/{id}/modules/
+
+        Returns the hierarchical curriculum view (modules → lessons),
+        ordered by module order then lesson order. Empty list when the
+        course has no modules.
+        """
+        course = self.get_object()
+        modules = course.modules.all().order_by("order")
+        serializer = ModuleWithLessonsSerializer(
+            modules, many=True, context={"request": request}
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ModuleViewSet(viewsets.ModelViewSet):
+    """
+    CRUD endpoints for course modules.
+
+    Endpoints:
+        GET    /api/modules/           - List modules (filterable by course)
+        POST   /api/modules/           - Create module (course instructor only)
+        GET    /api/modules/{id}/      - Retrieve module
+        PUT    /api/modules/{id}/      - Update module (course instructor only)
+        PATCH  /api/modules/{id}/      - Partial update (course instructor only)
+        DELETE /api/modules/{id}/      - Delete module (course instructor only)
+
+    Filters:
+        - course: filter by course ID
+        - course__slug: filter by course slug
+    """
+
+    queryset = Module.objects.select_related("course", "course__instructor")
+    serializer_class = ModuleSerializer
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+        IsModuleCourseInstructorOrReadOnly,
+    ]
+
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ["course", "course__slug"]
+    ordering_fields = ["order", "created_at"]
+    ordering = ["course", "order"]

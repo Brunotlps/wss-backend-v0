@@ -167,6 +167,10 @@ class LessonListSerializer(serializers.ModelSerializer):
         source="video.thumbnail", read_only=True, allow_null=True
     )
 
+    module_title = serializers.CharField(
+        source="module.title", read_only=True, allow_null=True
+    )
+
     class Meta:
         model = Lesson
         fields = [
@@ -174,6 +178,8 @@ class LessonListSerializer(serializers.ModelSerializer):
             "title",
             "order",
             "course_title",
+            "module",
+            "module_title",
             "duration_formatted",
             "is_free_preview",
             "video_thumbnail",
@@ -200,6 +206,9 @@ class LessonDetailSerializer(serializers.ModelSerializer):
     course_title = serializers.CharField(source="course.title", read_only=True)
     duration_formatted = serializers.CharField(read_only=True)
     video = VideoListSerializer(read_only=True)
+    module_title = serializers.CharField(
+        source="module.title", read_only=True, allow_null=True
+    )
 
     next_lesson = serializers.SerializerMethodField()
     previous_lesson = serializers.SerializerMethodField()
@@ -215,6 +224,8 @@ class LessonDetailSerializer(serializers.ModelSerializer):
             "duration",
             "duration_formatted",
             "course_title",
+            "module",
+            "module_title",
             "video",
             "next_lesson",
             "previous_lesson",
@@ -281,6 +292,7 @@ class LessonCreateSerializer(serializers.ModelSerializer):
         fields = [
             "title",
             "course",
+            "module",
             "video",
             "order",
             "description",
@@ -318,6 +330,7 @@ class LessonCreateSerializer(serializers.ModelSerializer):
         Checks:
         1. Ownership: User can only create lessons in their own courses
         2. unique_together: [course, order] must be unique
+        3. Cross-field: when module is set, module.course must equal course
 
         Args:
             data (dict): Validated field data
@@ -326,7 +339,7 @@ class LessonCreateSerializer(serializers.ModelSerializer):
             dict: Validated data
 
         Raises:
-            ValidationError: If ownership or uniqueness constraints fail
+            ValidationError: If ownership, uniqueness, or module constraints fail
         """
 
         # Validate ownership: user can only create lessons in their own courses
@@ -345,6 +358,13 @@ class LessonCreateSerializer(serializers.ModelSerializer):
                         "course": f"You can only create lessons in your own courses. This course belongs to {course.instructor.get_full_name() or course.instructor.username}."
                     }
                 )
+
+        # Validate cross-field: module must belong to the same course
+        module = data.get("module")
+        if module is not None and course is not None and module.course_id != course.id:
+            raise serializers.ValidationError(
+                {"module": "The selected module belongs to a different course."}
+            )
 
         # Validate unique_together: [course, order] must be unique
         order = data.get("order")
@@ -381,6 +401,7 @@ class LessonUpdateSerializer(serializers.ModelSerializer):
         fields = [
             "title",
             "course",
+            "module",
             "video",
             "order",
             "description",
@@ -484,6 +505,15 @@ class LessonUpdateSerializer(serializers.ModelSerializer):
                     {
                         "course": f"You can only update lessons in your own courses. This course belongs to {course.instructor.get_full_name() or course.instructor.username}."
                     }
+                )
+
+        # Validate cross-field: module must belong to the same course
+        # 'module' may be explicitly None in PATCH to clear the relation;
+        # only validate when the key is present and a module was provided.
+        if "module" in data and data["module"] is not None and course is not None:
+            if data["module"].course_id != course.id:
+                raise serializers.ValidationError(
+                    {"module": "The selected module belongs to a different course."}
                 )
 
         # Validate unique_together: [course, order] only if order changed
