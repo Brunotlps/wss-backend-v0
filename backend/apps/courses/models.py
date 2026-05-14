@@ -4,13 +4,16 @@ Course models for WSS Backend.
 This module contains models related to courses and their organization:
 - Category: Organizes courses into topics (e.g., "Web Development", "Data Science")
 - Course: Represents a complete online course with videos, lessons, and enrollment
+- Module: Optional grouping of lessons inside a course (chapters/sections)
 
 Relationships:
 - Category ←→ Course (One-to-Many): A category can have many courses
 - User ←→ Course (One-to-Many via instructor): An instructor can create many courses
+- Course ←→ Module (One-to-Many): A course can be split into ordered modules
 """
 
 from django.contrib.auth import get_user_model
+from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
@@ -217,3 +220,64 @@ class Course(TimeStampedModel):
     def get_enrolled_count(self):
         """Return number of students enrolled."""
         return self.enrollments.filter(is_active=True).count()
+
+
+class Module(TimeStampedModel):
+    """
+    Optional grouping of lessons inside a course.
+
+    Modules represent chapters or sections within a course, allowing
+    instructors to organize lessons in a hierarchical structure
+    (Course → Module → Lesson). Modules are optional: a course may
+    have lessons attached directly without any module.
+
+    Attributes:
+        course (ForeignKey): Course this module belongs to.
+        title (CharField): Module title (e.g., "Fundamentals").
+        description (TextField): Optional module description.
+        order (PositiveIntegerField): Module position inside the course
+            (starts at 1). Unique together with course.
+
+    Notes:
+        - order + course must be unique (enforced by Meta.unique_together).
+        - Lessons reference the module via Lesson.module (nullable FK).
+        - Deleting a course cascades and removes its modules.
+    """
+
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name="modules",
+        verbose_name=_("course"),
+        help_text=_("Course this module belongs to"),
+    )
+
+    title = models.CharField(
+        _("title"),
+        max_length=200,
+        help_text=_("Module title (e.g., 'Fundamentals')"),
+    )
+
+    description = models.TextField(
+        _("description"),
+        blank=True,
+        help_text=_("Optional description of the module content"),
+    )
+
+    order = models.PositiveIntegerField(
+        _("order"),
+        validators=[MinValueValidator(1)],
+        help_text=_("Module position within the course (starts at 1)"),
+    )
+
+    class Meta:
+        verbose_name = _("module")
+        verbose_name_plural = _("modules")
+        ordering = ["course", "order"]
+        unique_together = [["course", "order"]]
+        indexes = [
+            models.Index(fields=["course", "order"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.course.title} - Module {self.order}: {self.title}"

@@ -5,7 +5,7 @@ from factory.django import DjangoModelFactory
 
 from apps.users.factories import InstructorFactory
 
-from .models import Category, Course
+from .models import Category, Course, Module
 
 
 class CategoryFactory(DjangoModelFactory):
@@ -40,3 +40,15 @@ class CourseFactory(DjangoModelFactory):
     class Params:
         free = factory.Trait(price=0)
         unpublished = factory.Trait(is_published=False)
+
+
+class ModuleFactory(DjangoModelFactory):
+    """Factory for Module."""
+
+    class Meta:
+        model = Module
+
+    course = factory.SubFactory(CourseFactory)
+    title = factory.Sequence(lambda n: f"Module {n}")
+    description = factory.Faker("paragraph", nb_sentences=1)
+    order = factory.Sequence(lambda n: n + 1)
