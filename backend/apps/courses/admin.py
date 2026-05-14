@@ -5,7 +5,16 @@ Django Admin configuration for Courses app.
 from django.contrib import admin
 from django.utils.translation import gettext_lazy as _
 
-from .models import Category, Course
+from .models import Category, Course, Module
+
+
+class ModuleInline(admin.TabularInline):
+    """Inline editor for a course's modules."""
+
+    model = Module
+    extra = 0
+    fields = ("order", "title", "description")
+    ordering = ("order",)
 
 
 @admin.register(Category)
@@ -48,6 +57,7 @@ class CourseAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("title",)}
     readonly_fields = ("created_at", "updated_at")
     list_editable = ("is_published",)  # Edit directly in list view
+    inlines = [ModuleInline]
 
     fieldsets = (
         (
@@ -83,3 +93,27 @@ class CourseAdmin(admin.ModelAdmin):
         """
         qs = super().get_queryset(request)
         return qs.select_related("instructor", "category")
+
+
+@admin.register(Module)
+class ModuleAdmin(admin.ModelAdmin):
+    """Admin configuration for the Module model."""
+
+    list_display = ("title", "course", "order", "created_at")
+    list_filter = ("course",)
+    search_fields = ("title", "description", "course__title")
+    list_editable = ("order",)
+    ordering = ("course", "order")
+    readonly_fields = ("created_at", "updated_at")
+
+    fieldsets = (
+        (None, {"fields": ("course", "order", "title", "description")}),
+        (
+            _("Timestamps"),
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
+    )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related("course")
