@@ -108,3 +108,27 @@ class IsCourseOwnerOrReadOnly(BasePermission):
             return True
 
         return obj.instructor == request.user
+
+
+class IsModuleCourseInstructorOrReadOnly(BasePermission):
+    """
+    Only the instructor of the module's course may modify the module.
+
+    Read access (GET/HEAD/OPTIONS) is open to anyone; write access (POST,
+    PUT, PATCH, DELETE) is restricted to authenticated instructors at the
+    view level, and to the specific course instructor at the object level.
+    """
+
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return True
+        return bool(
+            request.user
+            and request.user.is_authenticated
+            and request.user.is_instructor
+        )
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+        return obj.course.instructor == request.user

@@ -1,9 +1,9 @@
-"""Tests for Category and Course models."""
+"""Tests for Category, Course and Module models."""
 
 import pytest
 
-from apps.courses.factories import CategoryFactory, CourseFactory
-from apps.courses.models import Course
+from apps.courses.factories import CategoryFactory, CourseFactory, ModuleFactory
+from apps.courses.models import Course, Module
 
 
 @pytest.mark.django_db
@@ -84,3 +84,62 @@ class TestCourseModel:
         course = CourseFactory()
         assert course.instructor is not None
         assert course.instructor.is_instructor is True
+
+
+@pytest.mark.django_db
+class TestModuleModel:
+    """Test suite for the Module model."""
+
+    def test_create_module_with_valid_data(self):
+        """Module is created with expected attributes."""
+        module = ModuleFactory(title="Fundamentals", order=1)
+        assert module.pk is not None
+        assert module.title == "Fundamentals"
+        assert module.order == 1
+
+    def test_module_str_returns_formatted_string(self):
+        """__str__ returns 'Course - Module N: Title' format."""
+        course = CourseFactory(title="Django Mastery")
+        module = ModuleFactory(course=course, order=2, title="Advanced Topics")
+        assert str(module) == "Django Mastery - Module 2: Advanced Topics"
+
+    def test_modules_ordered_by_course_then_order(self):
+        """Module Meta.ordering returns modules sorted by course and order."""
+        course = CourseFactory()
+        m2 = ModuleFactory(course=course, order=2)
+        m1 = ModuleFactory(course=course, order=1)
+        assert list(Module.objects.filter(course=course)) == [m1, m2]
+
+    def test_unique_together_course_order(self):
+        """Two modules in the same course cannot share the same order."""
+        from django.db import IntegrityError
+
+        course = CourseFactory()
+        ModuleFactory(course=course, order=1)
+        with pytest.raises(IntegrityError):
+            ModuleFactory(course=course, order=1)
+
+    def test_same_order_allowed_in_different_courses(self):
+        """Modules from different courses may share an order value."""
+        c1 = CourseFactory()
+        c2 = CourseFactory()
+        m1 = ModuleFactory(course=c1, order=1)
+        m2 = ModuleFactory(course=c2, order=1)
+        assert m1.pk != m2.pk
+        assert m1.order == m2.order == 1
+
+    def test_course_modules_reverse_relation(self):
+        """Course exposes its modules via 'modules' related_name."""
+        course = CourseFactory()
+        ModuleFactory(course=course, order=1)
+        ModuleFactory(course=course, order=2)
+        assert course.modules.count() == 2
+
+    def test_cascade_delete_with_course(self):
+        """Deleting a course also deletes its modules."""
+        course = CourseFactory()
+        ModuleFactory(course=course, order=1)
+        ModuleFactory(course=course, order=2)
+        course_id = course.id
+        course.delete()
+        assert Module.objects.filter(course_id=course_id).count() == 0

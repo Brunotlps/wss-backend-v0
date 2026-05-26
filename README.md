@@ -9,7 +9,7 @@
 [![Redis](https://img.shields.io/badge/Redis-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io/)
 [![Celery](https://img.shields.io/badge/Celery-37814A?style=flat&logo=celery&logoColor=white)](https://docs.celeryq.dev/)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
-[![Status](https://img.shields.io/badge/Status-In%20Active%20Development-yellow?style=flat)]()
+[![Status](https://img.shields.io/badge/Status-Production-brightgreen?style=flat)]()
  
 ---
  
@@ -25,7 +25,7 @@ The long-term vision is to build **a learning platform centered on community and
  
 ## Project Status
  
-🚧 **In active development** — Sprint 8 of backend implementation (4/8 tasks complete).
+✅ **Production live** at [api.nousflow.com.br](https://api.nousflow.com.br) — Sprint 11 complete.
  
 ### What's done
  
@@ -33,22 +33,24 @@ The long-term vision is to build **a learning platform centered on community and
 - JWT authentication with `djangorestframework-simplejwt`
 - Custom user model
 - Settings modularized by environment (`base`, `development`, `production`)
-- Production hardening: HSTS, SSL settings, security headers
+- Production hardening: HSTS, SSL/HTTPS, secure cookies, security headers
 - Video upload with real MIME validation via `python-magic` (not just file extension)
 - Redis-cached `IsEnrolled` permission for performance on protected resources
 - PDF certificate generation with `ReportLab` (unique certificate codes, integrated with the Django model layer)
 - Background task infrastructure with Celery + Redis
 - Sentry integration with LGPD-compliant PII filtering
 - OpenAPI / Swagger documentation via `drf-spectacular`
-- Containerized environment with Docker Compose
-- Test infrastructure with `pytest`, `pytest-django`, and `factory-boy` (target coverage: >80%)
+- Containerized environment with Docker Compose + Nginx reverse proxy (production on DigitalOcean)
+- Stripe Payment Intent integration with webhook verification
+- Google OAuth 2.0 + OIDC login (Authorization Code Flow, id_token validation via JWKS)
+- 311 tests passing, 96.23% coverage enforced in CI
  
-### What's next (current sprint)
+### What's next
  
-- 🟡 **Payment system (Stripe integration)** — known limitation, currently in active development. The `Course` model already has a `price` field, but full payment verification before enrollment is the focus of the current sprint. See [PAYMENT_SYSTEM_PLAN.md](./backend/planning_deploy/PAYMENT_SYSTEM_PLAN.md) for the detailed design document.
-- 🟡 **Test coverage expansion**
-- 🟡 **PEP8 audit and code quality pass**
-- 🟡 **Production deploy** to a self-managed VPS
+- 🟡 PDF lesson viewer — pending `pdf_file` field on lessons endpoint
+- 🟡 Lesson supplementary materials — pending `attachments[]` field
+- 🟡 Instructor dashboard — analytics and student progress
+- 🟡 Course community tab — discussions and Q&A per course
 
  
 ---
@@ -78,9 +80,12 @@ The long-term vision is to build **a learning platform centered on community and
 - `flake8`, `black`, `isort`, `pylint` (code quality)
 - Sentry (error monitoring with LGPD-compliant PII filtering)
  
+**Auth**
+- `google-auth` + `google-auth-oauthlib` (Google OAuth 2.0 + OIDC)
+
 **Infrastructure**
 - Docker + Docker Compose
-- Gunicorn + Nginx (planned for production)
+- Gunicorn + Nginx (production on DigitalOcean VPS)
  
 ---
  
@@ -145,8 +150,11 @@ Sentry integration filters out personally identifiable information before events
 ### Production-ready settings from day one
 Even in active development, `production.py` enforces HSTS, SSL redirect, secure cookies, and other security headers. The intent is that "going to production" should not require a security audit at the last moment.
  
+### Google OAuth 2.0 + OIDC
+Login with Google uses the Authorization Code Flow entirely server-side. The backend generates a cryptographic `state` and `nonce`, validates the `id_token` signature via Google's JWKS endpoint, enforces `email_verified`, and issues its own JWT pair — the Google token never touches the frontend. Tokens are delivered via URL fragment (`#`) to prevent exposure in server logs.
+
 ### Test-Driven Development
-The project follows a TDD workflow (RED → GREEN → REFACTOR) with a >80% coverage target enforced in `pytest.ini`. Test data is built with `factory-boy` factories instead of fragile fixtures.
+The project follows a TDD workflow (RED → GREEN → REFACTOR) with a >80% coverage target enforced in CI. Test data is built with `factory-boy` factories instead of fragile fixtures.
  
 ---
  
@@ -198,13 +206,11 @@ docker compose exec backend pytest apps/enrollments/
  
 ## Roadmap
  
-### Short term (current sprint)
-- Complete Stripe payment integration with webhook verification
-- Expand automated test coverage on payment flows
-- First production deploy on a self-managed VPS
- 
+### Short term
+- PDF lesson viewer and supplementary materials (pending backend fields)
+- Instructor dashboard — analytics and student progress
+
 ### Medium term
-- Frontend implementation (React)
 - Private beta with *Dupla de Milheiros* as the first real instructors
 - Public launch with companion ebook
  
@@ -214,7 +220,7 @@ docker compose exec backend pytest apps/enrollments/
 - **Instructor dashboard** — analytics, student progress, content management
 - Multi-instructor platform with a strong focus on **community and learning outcomes**, rather than catalog volume
  
-For more detailed planning documents, see [`backend/planning_deploy/`](./backend/planning_deploy/).
+For the OAuth implementation strategy, see [`sprint-oauth.md`](./sprint-oauth.md).
  
 ---
  

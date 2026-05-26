@@ -1,10 +1,11 @@
 """Tests for Video and Lesson models."""
 
-import pytest
 from datetime import timedelta
 
+import pytest
+
+from apps.courses.factories import CourseFactory, ModuleFactory
 from apps.videos.factories import LessonFactory, VideoFactory
-from apps.courses.factories import CourseFactory
 
 
 @pytest.mark.django_db
@@ -114,3 +115,46 @@ class TestLessonModel:
         LessonFactory(course=course, order=5)
         with pytest.raises(IntegrityError):
             LessonFactory(course=course, order=5)
+
+    def test_lesson_without_module_is_allowed(self):
+        """Module is optional; lesson can be created with module=None."""
+        lesson = LessonFactory()
+        assert lesson.module is None
+
+    def test_lesson_with_module_from_same_course(self):
+        """Lesson accepts a module that belongs to the same course."""
+        course = CourseFactory()
+        module = ModuleFactory(course=course, order=1)
+        lesson = LessonFactory(course=course, module=module, order=1)
+        lesson.full_clean()  # should not raise
+        assert lesson.module == module
+
+    def test_lesson_with_module_from_different_course_raises(self):
+        """ValidationError is raised when lesson.module.course != lesson.course."""
+        from django.core.exceptions import ValidationError
+
+        course_a = CourseFactory()
+        course_b = CourseFactory()
+        module_b = ModuleFactory(course=course_b, order=1)
+        lesson = LessonFactory.build(course=course_a, module=module_b, order=1)
+        # Re-attach a saved video so full_clean() can validate FK fields safely
+        lesson.video = VideoFactory()
+        with pytest.raises(ValidationError):
+            lesson.full_clean()
+
+    def test_module_lessons_reverse_relation(self):
+        """Module exposes its lessons via 'lessons' related_name."""
+        course = CourseFactory()
+        module = ModuleFactory(course=course, order=1)
+        LessonFactory(course=course, module=module, order=1)
+        LessonFactory(course=course, module=module, order=2)
+        assert module.lessons.count() == 2
+
+    def test_deleting_module_keeps_lessons_with_null_module(self):
+        """SET_NULL on module FK keeps lessons but clears module reference."""
+        course = CourseFactory()
+        module = ModuleFactory(course=course, order=1)
+        lesson = LessonFactory(course=course, module=module, order=1)
+        module.delete()
+        lesson.refresh_from_db()
+        assert lesson.module is None

@@ -1,11 +1,13 @@
 """Tests for Courses API views."""
 
-import pytest
 from rest_framework import status
 
-from apps.courses.factories import CategoryFactory, CourseFactory
-from apps.courses.models import Course
+import pytest
+
+from apps.courses.factories import CategoryFactory, CourseFactory, ModuleFactory
+from apps.courses.models import Course, Module
 from apps.users.factories import InstructorFactory, UserFactory
+from apps.videos.factories import LessonFactory
 
 
 @pytest.mark.django_db
@@ -111,3 +113,105 @@ class TestCourseViewSet:
         response = api_client.get(f"{self.URL}{course.pk}/lessons/")
         assert response.status_code == status.HTTP_200_OK
         assert isinstance(response.data, list)
+
+    def test_modules_action_returns_modules_with_lessons(self, api_client):
+        """GET /api/courses/{id}/modules/ returns modules with nested lessons."""
+        course = CourseFactory(is_published=True)
+        module = ModuleFactory(course=course, order=1, title="Intro")
+        LessonFactory(course=course, module=module, order=1, title="First")
+        response = api_client.get(f"{self.URL}{course.pk}/modules/")
+        assert response.status_code == status.HTTP_200_OK
+        assert isinstance(response.data, list)
+        assert response.data[0]["title"] == "Intro"
+        assert len(response.data[0]["lessons"]) == 1
+        assert response.data[0]["lessons"][0]["title"] == "First"
+
+    def test_modules_action_empty_when_course_has_no_modules(self, api_client):
+        """Empty list is returned when course has no modules."""
+        course = CourseFactory(is_published=True)
+        response = api_client.get(f"{self.URL}{course.pk}/modules/")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data == []
+
+
+@pytest.mark.django_db
+class TestModuleViewSet:
+    """Tests for /api/modules/ CRUD and permissions."""
+
+    URL = "/api/modules/"
+
+    def test_list_modules_is_public(self, api_client):
+        """Anyone can list modules."""
+        ModuleFactory.create_batch(3)
+        response = api_client.get(self.URL)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 3
+
+    def test_filter_modules_by_course(self, api_client):
+        """Modules can be filtered by course id."""
+        course = CourseFactory()
+        ModuleFactory(course=course, order=1)
+        ModuleFactory(course=course, order=2)
+        ModuleFactory()  # unrelated module
+        response = api_client.get(self.URL, {"course": course.pk})
+        assert response.data["count"] == 2
+
+    def test_create_module_as_course_instructor(self, instructor_client):
+        """Course instructor can create a module."""
+        course = CourseFactory(instructor=instructor_client.user)
+        payload = {
+            "course": course.pk,
+            "title": "New Module",
+            "order": 1,
+        }
+        response = instructor_client.post(self.URL, payload)
+        assert response.status_code == status.HTTP_201_CREATED
+        assert Module.objects.filter(title="New Module").exists()
+
+    def test_create_module_as_non_owner_returns_400(self, instructor_client):
+        """Instructor that does not own the course is rejected."""
+        course = CourseFactory()  # different instructor
+        payload = {
+            "course": course.pk,
+            "title": "Not Mine",
+            "order": 1,
+        }
+        response = instructor_client.post(self.URL, payload)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_create_module_as_student_returns_403(self, auth_client):
+        """Regular user cannot create a module."""
+        course = CourseFactory()
+        payload = {"course": course.pk, "title": "x", "order": 1}
+        response = auth_client.post(self.URL, payload)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_create_module_unauthenticated_returns_401(self, api_client):
+        """Anonymous user cannot create a module."""
+        course = CourseFactory()
+        payload = {"course": course.pk, "title": "x", "order": 1}
+        response = api_client.post(self.URL, payload)
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_update_module_as_owner(self, instructor_client):
+        """Course instructor can rename their module."""
+        course = CourseFactory(instructor=instructor_client.user)
+        module = ModuleFactory(course=course, order=1, title="Old")
+        response = instructor_client.patch(f"{self.URL}{module.pk}/", {"title": "New"})
+        assert response.status_code == status.HTTP_200_OK
+        module.refresh_from_db()
+        assert module.title == "New"
+
+    def test_update_module_as_non_owner_returns_403(self, instructor_client):
+        """Non-owner instructor receives 403 on update."""
+        module = ModuleFactory()  # owned by another instructor
+        response = instructor_client.patch(f"{self.URL}{module.pk}/", {"title": "Hack"})
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_delete_module_as_owner(self, instructor_client):
+        """Course instructor can delete their module."""
+        course = CourseFactory(instructor=instructor_client.user)
+        module = ModuleFactory(course=course, order=1)
+        response = instructor_client.delete(f"{self.URL}{module.pk}/")
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        assert not Module.objects.filter(pk=module.pk).exists()

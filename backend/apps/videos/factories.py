@@ -31,6 +31,7 @@ class LessonFactory(DjangoModelFactory):
 
     title = factory.Sequence(lambda n: f"Lesson {n}")
     course = factory.SubFactory(CourseFactory)
+    module = None  # Optional; tests can pass an explicit ModuleFactory instance
     video = factory.SubFactory(VideoFactory)
     order = factory.Sequence(lambda n: n + 1)
     description = factory.Faker("paragraph", nb_sentences=2)

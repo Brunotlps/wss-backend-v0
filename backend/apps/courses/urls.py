@@ -64,7 +64,7 @@ from django.urls import include, path
 
 from rest_framework.routers import DefaultRouter
 
-from .views import CategoryViewSet, CourseViewSet
+from .views import CategoryViewSet, CourseViewSet, ModuleViewSet
 
 # Initialize the DefaultRouter for automatic URL routing
 router = DefaultRouter()
@@ -74,8 +74,13 @@ router = DefaultRouter()
 router.register(r"categories", CategoryViewSet, basename="category")
 
 # Register CourseViewSet with 'courses' prefix
-# Generates URLs: /courses/, /courses/{id}/, /courses/{id}/lessons/, etc.
+# Generates URLs: /courses/, /courses/{id}/, /courses/{id}/lessons/,
+# /courses/{id}/modules/, etc.
 router.register(r"courses", CourseViewSet, basename="course")
+
+# Register ModuleViewSet with 'modules' prefix
+# Generates URLs: /modules/, /modules/{id}/
+router.register(r"modules", ModuleViewSet, basename="module")
 
 # Export URL patterns for inclusion in project-level urls.py
 urlpatterns = [

@@ -16,7 +16,7 @@ from rest_framework import serializers
 
 from apps.users.serializers import UserListSerializer
 
-from .models import Category, Course
+from .models import Category, Course, Module
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -255,3 +255,89 @@ class CourseUpdateSerializer(serializers.ModelSerializer):
             validated_data["slug"] = slugify(validated_data["title"])
 
         return super().update(instance, validated_data)
+
+
+class ModuleSerializer(serializers.ModelSerializer):
+    """
+    Serializer for Module CRUD operations.
+
+    Enforces:
+        - Ownership: only the course instructor may create/update a module.
+        - Uniqueness of (course, order) within create and order-changing updates.
+    """
+
+    lessons_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Module
+        fields = [
+            "id",
+            "course",
+            "title",
+            "description",
+            "order",
+            "lessons_count",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_lessons_count(self, obj):
+        """Return number of lessons inside this module."""
+        return obj.lessons.count()
+
+    def _validate_ownership(self, course):
+        """Ensure the requesting user owns the target course."""
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            raise serializers.ValidationError(
+                "Authentication required to manage modules."
+            )
+        if course.instructor != request.user:
+            raise serializers.ValidationError(
+                {"course": "You can only manage modules in your own courses."}
+            )
+
+    def validate(self, data):
+        """Validate course ownership.
+
+        Note:
+            unique_together [course, order] is enforced by DRF's built-in
+            UniqueTogetherValidator (declared via Model Meta).
+        """
+        course = data.get("course") or (self.instance.course if self.instance else None)
+        if course:
+            self._validate_ownership(course)
+        return data
+
+
+class ModuleWithLessonsSerializer(serializers.ModelSerializer):
+    """
+    Read-only Module serializer that nests its lessons.
+
+    Used in the nested course action (GET /api/courses/{id}/modules/) to
+    deliver a hierarchical view of the course curriculum.
+    """
+
+    lessons = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Module
+        fields = [
+            "id",
+            "course",
+            "title",
+            "description",
+            "order",
+            "lessons",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+    def get_lessons(self, obj):
+        """Return ordered lessons for this module using LessonListSerializer."""
+        from apps.videos.serializers import LessonListSerializer
+
+        lessons = obj.lessons.all().order_by("order")
+        return LessonListSerializer(lessons, many=True, context=self.context).data

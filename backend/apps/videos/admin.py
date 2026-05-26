@@ -45,19 +45,23 @@ class LessonAdmin(admin.ModelAdmin):
     list_display = (
         "title",
         "course",
+        "module",
         "order",
         "duration",
         "is_free_preview",
         "created_at",
     )
-    list_filter = ("is_free_preview", "course", "created_at")
-    search_fields = ("title", "description", "course__title")
+    list_filter = ("is_free_preview", "course", "module", "created_at")
+    search_fields = ("title", "description", "course__title", "module__title")
     readonly_fields = ("created_at", "updated_at")
     list_editable = ("order", "is_free_preview")
     ordering = ("course", "order")
 
     fieldsets = (
-        (_("Lesson Information"), {"fields": ("title", "course", "video", "order")}),
+        (
+            _("Lesson Information"),
+            {"fields": ("title", "course", "module", "video", "order")},
+        ),
         (_("Content"), {"fields": ("description", "duration", "is_free_preview")}),
         (
             _("Timestamps"),
@@ -68,4 +72,4 @@ class LessonAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         """Optimize queries with select_related."""
         qs = super().get_queryset(request)
-        return qs.select_related("course", "video")
+        return qs.select_related("course", "module", "video")

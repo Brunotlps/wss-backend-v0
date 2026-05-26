@@ -13,12 +13,13 @@ Note: We separate Video (media file) from Lesson (pedagogical structure) to allo
 future flexibility (e.g., lessons with PDFs, quizzes, or multiple videos).
 """
 
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.models import TimeStampedModel
-from apps.courses.models import Course
+from apps.courses.models import Course, Module
 from apps.videos.validators import (
     validate_video_extension,
     validate_video_mimetype,
@@ -148,6 +149,18 @@ class Lesson(TimeStampedModel):
         help_text=_("Course this lesson belongs to"),
     )
 
+    module = models.ForeignKey(
+        Module,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="lessons",
+        verbose_name=_("module"),
+        help_text=_(
+            "Optional module grouping this lesson (must belong to the same course)"
+        ),
+    )
+
     video = models.OneToOneField(
         Video,
         on_delete=models.CASCADE,
@@ -192,6 +205,18 @@ class Lesson(TimeStampedModel):
 
     def __str__(self):
         return f"{self.course.title} - Lesson {self.order}: {self.title}"
+
+    def clean(self):
+        """Ensure module (when set) belongs to the lesson's course."""
+        super().clean()
+        if (
+            self.module_id
+            and self.course_id
+            and self.module.course_id != self.course_id
+        ):
+            raise ValidationError(
+                {"module": _("The selected module belongs to a different course.")}
+            )
 
     def get_next_lesson(self):
         """Return the next lesson in the course."""

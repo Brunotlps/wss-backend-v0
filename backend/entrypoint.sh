@@ -20,16 +20,14 @@ if [ -n "$DJANGO_SUPERUSER_EMAIL" ] && [ -n "$DJANGO_SUPERUSER_PASSWORD" ]; then
     python manage.py shell -c "
 from django.contrib.auth import get_user_model
 User = get_user_model()
-if not User.objects.filter(email='${DJANGO_SUPERUSER_EMAIL}').exists():
-    User.objects.create_superuser(
-        email='${DJANGO_SUPERUSER_EMAIL}',
-        username='${DJANGO_SUPERUSER_USERNAME:-admin}',
-        password='${DJANGO_SUPERUSER_PASSWORD}'
-    )
-    print('✅ Superuser created: ${DJANGO_SUPERUSER_EMAIL}')
+email = '${DJANGO_SUPERUSER_EMAIL}'
+username = '${DJANGO_SUPERUSER_USERNAME:-admin}'
+if not User.objects.filter(email=email).exists() and not User.objects.filter(username=username).exists():
+    User.objects.create_superuser(email=email, username=username, password='${DJANGO_SUPERUSER_PASSWORD}')
+    print('✅ Superuser created: ' + email)
 else:
-    print('ℹ️  Superuser already exists: ${DJANGO_SUPERUSER_EMAIL}')
-"
+    print('ℹ️  Superuser already exists: ' + email)
+" || echo "⚠️  Superuser creation failed — continuing startup"
 else
     echo "⚠️  DJANGO_SUPERUSER_EMAIL/PASSWORD not set — skipping superuser creation"
 fi
