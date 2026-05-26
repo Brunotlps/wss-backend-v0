@@ -157,9 +157,14 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'django.security.DisallowedHost': {
+            'handlers': ['file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
         'django.db.backends': {
             'handlers': ['file'],
-            'level': 'WARNING',  
+            'level': 'WARNING',
             'propagate': False,
         },
     },
