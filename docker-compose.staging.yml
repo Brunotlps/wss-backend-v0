@@ -1,0 +1,134 @@
+# Docker Compose — Staging Environment
+#
+# Runs alongside production on the same VPS without conflicts:
+#   - Container names prefixed with wss_staging_
+#   - Separate volumes for DB, static, and media
+#   - Nginx on ports 8080/8443 (Cloudflare proxies staging.api.nousflow.com.br here)
+#   - Reads from .env.staging
+#
+# Usage:
+#   docker compose -f docker-compose.staging.yml up -d
+#   docker compose -f docker-compose.staging.yml logs -f
+#   docker compose -f docker-compose.staging.yml down
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: wss_staging_postgres
+    volumes:
+      - staging_postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - staging_network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: wss_staging_redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - staging_network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wss_staging_backend
+    volumes:
+      - ./backend:/app
+      - staging_static_volume:/app/staticfiles
+      - staging_media_volume:/app/media
+    env_file:
+      - .env.staging
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - staging_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+  nginx:
+    image: nginx:1.26-alpine
+    container_name: wss_staging_nginx
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./nginx/nginx.staging.conf:/etc/nginx/nginx.conf:ro
+      - staging_static_volume:/app/staticfiles:ro
+      - staging_media_volume:/app/media:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - staging_network
+    restart: unless-stopped
+
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wss_staging_celery
+    command: celery -A config worker -l info
+    volumes:
+      - ./backend:/app
+      - staging_media_volume:/app/media
+    env_file:
+      - .env.staging
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - staging_network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+volumes:
+  staging_postgres_data:
+  staging_static_volume:
+  staging_media_volume:
+
+networks:
+  staging_network:
+    driver: bridge
