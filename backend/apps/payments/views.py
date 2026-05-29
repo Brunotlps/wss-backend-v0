@@ -150,23 +150,55 @@ class StripeWebhookView(APIView):
         try:
             event = StripeService.verify_webhook_signature(payload, signature)
         except stripe.error.SignatureVerificationError:
-            logger.warning("Invalid Stripe webhook signature")
+            logger.warning("Webhook signature verification failed")
             return HttpResponse(status=400)
 
         event_type = event.type
+        payment_intent = event.data.get("object", {})
+        pi_id = payment_intent.get("id", "unknown")
+        metadata = payment_intent.get("metadata", {})
+
+        logger.info(
+            "Webhook received: event=%s, payment_intent=%s, "
+            "user_id=%s, course_id=%s",
+            event_type,
+            pi_id,
+            metadata.get("user_id", "N/A"),
+            metadata.get("course_id", "N/A"),
+        )
 
         if event_type == "payment_intent.succeeded":
             try:
-                StripeService.handle_payment_success(event.data)
+                enrollment = StripeService.handle_payment_success(event.data)
+                logger.info(
+                    "Payment processed: payment_intent=%s, "
+                    "enrollment_id=%s, user_id=%s, course_id=%s",
+                    pi_id,
+                    enrollment.id,
+                    enrollment.user_id,
+                    enrollment.course_id,
+                )
             except ValueError as exc:
-                # Duplicate webhook — already processed, respond 200 for idempotency
                 logger.info("Duplicate webhook ignored: %s", exc)
             except Exception as exc:
-                logger.error("Unhandled error processing payment success: %s", exc)
+                logger.error(
+                    "Error processing payment: payment_intent=%s, "
+                    "user_id=%s, course_id=%s, error=%s",
+                    pi_id,
+                    metadata.get("user_id", "N/A"),
+                    metadata.get("course_id", "N/A"),
+                    exc,
+                    exc_info=True,
+                )
                 return HttpResponse(status=500)
 
         elif event_type == "payment_intent.payment_failed":
-            pi_id = event.data["object"].get("id", "unknown")
-            logger.warning("Payment failed for intent: %s", pi_id)
+            logger.warning(
+                "Payment failed: payment_intent=%s, "
+                "user_id=%s, course_id=%s",
+                pi_id,
+                metadata.get("user_id", "N/A"),
+                metadata.get("course_id", "N/A"),
+            )
 
         return HttpResponse(status=200)
