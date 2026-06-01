@@ -31,6 +31,12 @@ DEBUG = False
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS')
 
+# CSRF trusted origins — derived from ALLOWED_HOSTS so they stay in sync.
+# Django 4+ validates the Origin header on HTTPS POST (e.g. the admin upload
+# form served from upload.nousflow.com.br). Without the matching origin here,
+# the admin rejects the submission with a CSRF error.
+CSRF_TRUSTED_ORIGINS = [f'https://{host}' for host in ALLOWED_HOSTS]
+
 # ==============================================
 # SECURITY SETTINGS
 # ==============================================
