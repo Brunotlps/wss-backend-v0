@@ -1,0 +1,179 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  #upload-progress-container {
+    display: none;
+    margin: 10px 0;
+    padding: 12px 14px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+  }
+
+  #upload-progress-bar-wrap {
+    width: 100%;
+    height: 18px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  #upload-progress-bar {
+    width: 0%;
+    height: 100%;
+    background: #417690;
+    transition: width 0.2s ease;
+  }
+
+  #upload-progress-text {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: #333;
+  }
+
+  #upload-cancel-btn {
+    background: #ba2121;
+    color: #fff;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  #upload-cancel-btn:hover {
+    background: #a41515;
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var form = document.querySelector('#content-main form');
+  if (!form) return;
+
+  var fileInputs = form.querySelectorAll('input[type="file"]');
+  if (fileInputs.length === 0) return;
+
+  // ── Progress UI ──────────────────────────────────────────────────────────
+  var container = document.createElement('div');
+  container.id = 'upload-progress-container';
+  container.innerHTML =
+    '<div id="upload-progress-bar-wrap">' +
+      '<div id="upload-progress-bar"></div>' +
+    '</div>' +
+    '<p id="upload-progress-text"></p>' +
+    '<button type="button" id="upload-cancel-btn">{% trans "Cancel upload" %}</button>';
+
+  var submitRow = form.querySelector('.submit-row');
+  if (submitRow) {
+    form.insertBefore(container, submitRow);
+  } else {
+    form.appendChild(container);
+  }
+
+  var bar      = document.getElementById('upload-progress-bar');
+  var text     = document.getElementById('upload-progress-text');
+  var cancelBtn = document.getElementById('upload-cancel-btn');
+
+  // ── Track which submit button was clicked ─────────────────────────────────
+  // FormData(form) does not automatically include the clicked button value.
+  // Django Admin uses _save / _continue / _addanother to decide what to do
+  // after saving, so we must capture and append it manually.
+  var clickedButton = null;
+  form.querySelectorAll('[type="submit"]').forEach(function (btn) {
+    btn.addEventListener('mousedown', function () { clickedButton = this; });
+  });
+
+  // ── Current XHR reference (needed for abort) ──────────────────────────────
+  var xhr = null;
+
+  cancelBtn.addEventListener('click', function () {
+    if (xhr) xhr.abort();
+  });
+
+  // ── Intercept submit ──────────────────────────────────────────────────────
+  form.addEventListener('submit', function (e) {
+    var hasFile = Array.from(fileInputs).some(function (input) {
+      return input.files && input.files.length > 0;
+    });
+
+    // If no file is selected, let the browser submit normally.
+    // This covers saves where the user only edits text fields.
+    if (!hasFile) return;
+
+    e.preventDefault();
+
+    // Resolve the form action to an absolute URL so we can compare it
+    // with xhr.responseURL (which is always absolute) after the request.
+    var formAction = new URL(form.action || window.location.href, window.location.href).href;
+
+    // Disable submit buttons to prevent double-submission
+    form.querySelectorAll('[type="submit"]').forEach(function (btn) {
+      btn.disabled = true;
+    });
+
+    // Show progress UI
+    container.style.display = 'block';
+    bar.style.width = '0%';
+    text.textContent = '{% trans "Preparing upload..." %}';
+
+    // Build FormData — includes all form fields + the file(s)
+    var formData = new FormData(form);
+
+    // Append the clicked button so Django knows which action to take
+    if (clickedButton && clickedButton.name) {
+      formData.append(clickedButton.name, clickedButton.value || '1');
+    }
+
+    xhr = new XMLHttpRequest();
+
+    // ── Progress handler ────────────────────────────────────────────────────
+    xhr.upload.onprogress = function (event) {
+      if (!event.lengthComputable) return;
+      var pct      = Math.round((event.loaded / event.total) * 100);
+      var loadedMB = (event.loaded / 1048576).toFixed(1);
+      var totalMB  = (event.total  / 1048576).toFixed(1);
+      bar.style.width = pct + '%';
+      text.textContent = pct + '% — ' + loadedMB + ' MB / ' + totalMB + ' MB';
+    };
+
+    // ── Response handler ────────────────────────────────────────────────────
+    xhr.onload = function () {
+      // A redirect (successful save) changes xhr.responseURL away from formAction.
+      // Form validation errors return 200 at the same URL — render the HTML.
+      if (xhr.responseURL && xhr.responseURL !== formAction) {
+        window.location.href = xhr.responseURL;
+      } else {
+        document.open();
+        document.write(xhr.responseText);
+        document.close();
+      }
+    };
+
+    // ── Abort handler ───────────────────────────────────────────────────────
+    xhr.onabort = function () {
+      container.style.display = 'none';
+      form.querySelectorAll('[type="submit"]').forEach(function (btn) {
+        btn.disabled = false;
+      });
+    };
+
+    // ── Error handler ───────────────────────────────────────────────────────
+    xhr.onerror = function () {
+      container.style.display = 'none';
+      form.querySelectorAll('[type="submit"]').forEach(function (btn) {
+        btn.disabled = false;
+      });
+      alert('{% trans "Upload failed. Please try again." %}');
+    };
+
+    xhr.open('POST', formAction);
+    xhr.send(formData);
+  });
+});
+</script>
+{% endblock %}
