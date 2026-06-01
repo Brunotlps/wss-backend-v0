@@ -68,9 +68,12 @@ document.addEventListener('DOMContentLoaded', function () {
     '<p id="upload-progress-text"></p>' +
     '<button type="button" id="upload-cancel-btn">{% trans "Cancel upload" %}</button>';
 
+  // Insert relative to the submit-row's actual parent. The .submit-row is
+  // nested inside an intermediate <div>, not a direct child of the form, so
+  // form.insertBefore() would throw NotFoundError.
   var submitRow = form.querySelector('.submit-row');
-  if (submitRow) {
-    form.insertBefore(container, submitRow);
+  if (submitRow && submitRow.parentNode) {
+    submitRow.parentNode.insertBefore(container, submitRow);
   } else {
     form.appendChild(container);
   }
