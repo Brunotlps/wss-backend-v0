@@ -54,9 +54,10 @@ staticfiles/
 *~
 
 # Claude Code
-.claude/
+# Harness (rules, context, agents, commands, shared settings) is versioned.
+# Only the personal per-developer override stays local.
+.claude/settings.local.json
 .claudeignore
-CLAUDE.md
 
 # OS
 .DS_Store
