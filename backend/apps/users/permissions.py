@@ -20,61 +20,54 @@ from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
 class IsOwnerOrReadOnly(BasePermission):
-    """
-    Custom permission to only allow owners of an object to edit it.
+    """Authenticated access only; object access limited to the owner.
 
-    This permission class grants read-only access to any request,
-    but only allows write permissions to the owner of the object.
+    ``has_permission`` rejects anonymous requests outright, so there is no public
+    listing or retrieval of user PII. ``has_object_permission`` then limits access
+    to the object's owner, with staff allowed to read any object and delete any.
 
-    Attributes:
-        Inherits from BasePermission
-
-    Methods:
-        has_object_permission: Determines if the user has permission to access the object
+    Ownership is resolved for the User object itself, owner-bearing objects
+    (Profile, Enrollment) and instructor-bearing objects (Course).
     """
 
-    def has_object_permission(self, request, view, obj):
-        """
-        Check if the user has permission to perform the requested action on the object.
+    def has_permission(self, request, view) -> bool:
+        """Allow only authenticated requests (blocks anonymous list/retrieve)."""
+        return bool(request.user and request.user.is_authenticated)
+
+    def has_object_permission(self, request, view, obj) -> bool:
+        """Authorize the action on ``obj`` based on ownership.
 
         Args:
-            request: The HTTP request being made
-            view: The view that is being accessed
-            obj: The object being accessed
+            request: The HTTP request being made.
+            view: The view being accessed.
+            obj: The object being accessed.
 
         Returns:
-            bool: True if the user has permission, False otherwise
+            bool: True if the user may perform the requested action.
 
         Logic:
-            - Read permissions (GET, HEAD, OPTIONS) are allowed to any request
-            - Write permissions are only allowed to the owner of the object
-            - DELETE operations restricted to staff users only
-
-        Notes:
-            - For User objects: checks if obj == request.user
-            - For related objects (Profile, Enrollment): checks if obj.user == request.user
-            - For Course objects: checks if obj.instructor == request.user
+            - SAFE methods (GET, HEAD, OPTIONS): owner or staff.
+            - DELETE: staff only.
+            - Other writes (POST, PUT, PATCH): owner only.
         """
-        if request.method in SAFE_METHODS:
-            return True
-
-        elif request.method == "DELETE":
+        if request.method == "DELETE":
             return request.user.is_staff
 
-        else:  # POST, PUT, PATCH
-            # Handle User objects (obj is the user itself)
-            if hasattr(obj, "username") and hasattr(obj, "email"):
-                return obj == request.user
+        if request.method in SAFE_METHODS:
+            return request.user.is_staff or self._is_owner(request.user, obj)
 
-            # Handle objects with 'user' attribute (Profile, Enrollment, etc.)
-            elif hasattr(obj, "user"):
-                return obj.user == request.user
+        return self._is_owner(request.user, obj)
 
-            # Handle Course objects (instructor ownership)
-            elif hasattr(obj, "instructor"):
-                return obj.instructor == request.user
+    @staticmethod
+    def _is_owner(user, obj) -> bool:
+        """Return True if ``user`` owns ``obj`` (User/Profile/Enrollment/Course)."""
+        if hasattr(obj, "username") and hasattr(obj, "email"):  # the User itself
+            return obj == user
 
-            # Deny by default for unknown object types
-            return False
+        if hasattr(obj, "user"):  # Profile, Enrollment, ...
+            return obj.user == user
 
-    # Para o futuro, trabalhar defensive programming e method specific logic
+        if hasattr(obj, "instructor"):  # Course
+            return obj.instructor == user
+
+        return False

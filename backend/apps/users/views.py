@@ -169,7 +169,8 @@ class UserViewSet(viewsets.ModelViewSet):
     - Customizable ordering
 
     Permissions:
-        - IsOwnerOrReadOnly: Anyone can read, only owner can edit
+        - IsOwnerOrReadOnly: authenticated only; staff see all records,
+          others see and edit only their own (anonymous access is rejected)
     """
 
     # Base configuration
@@ -181,6 +182,16 @@ class UserViewSet(viewsets.ModelViewSet):
     search_fields = ["username", "email"]
     ordering_fields = ["username", "date_joined"]
     ordering = ["-date_joined"]
+
+    def get_queryset(self):
+        """Scope reads: staff see all users; everyone else only their own record."""
+        user = getattr(self.request, "user", None)
+        if user is None or not user.is_authenticated:
+            return User.objects.none()
+        qs = User.objects.select_related("profile")  # retrieve nests the profile
+        if user.is_staff:
+            return qs
+        return qs.filter(pk=user.pk)
 
     # Dynamic serializers
     def get_serializer_class(self):
@@ -241,13 +252,24 @@ class ProfileViewSet(viewsets.ModelViewSet):
     - Optimized queries with select_related
 
     Permissions:
-        - IsOwnerOrReadOnly: Anyone can read, only owner can edit
+        - IsOwnerOrReadOnly: authenticated only; staff see all records,
+          others see and edit only their own (anonymous access is rejected)
     """
 
     # Base configuration
     queryset = Profile.objects.select_related("user")
     serializer_class = ProfileSerializer
     permission_classes = [IsOwnerOrReadOnly]
+
+    def get_queryset(self):
+        """Scope reads: staff see all profiles; everyone else only their own."""
+        qs = Profile.objects.select_related("user")
+        user = getattr(self.request, "user", None)
+        if user is None or not user.is_authenticated:
+            return Profile.objects.none()
+        if user.is_staff:
+            return qs
+        return qs.filter(user=user)
 
 
 class GoogleLoginView(APIView):
