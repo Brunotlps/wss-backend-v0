@@ -206,7 +206,9 @@ class SocialAccount(TimeStampedModel):
     uid = models.CharField(
         _("provider user ID"),
         max_length=255,
-        help_text=_("Immutable identifier from the provider (e.g. Google 'sub' claim)."),
+        help_text=_(
+            "Immutable identifier from the provider (e.g. Google 'sub' claim)."
+        ),
     )
     extra_data = models.JSONField(
         _("extra data"),

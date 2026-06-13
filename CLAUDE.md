@@ -32,7 +32,7 @@ App-specific files: `filters.py` (courses, videos, enrollments) ·
 
 **Sprint 11 complete. Sprint 12 in progress. Production live at https://api.nousflow.com.br**
 
-- 340 tests passing; coverage enforced ≥80% in CI (GitHub Actions, SQLite + Redis)
+- 340 tests passing; CI (GitHub Actions) gates merges with a lint + migration-drift check (flake8/black/isort) and the pytest suite on PostgreSQL + Redis, coverage enforced ≥80%
 - All features implemented: auth (JWT + Google OAuth), courses/modules/lessons, videos, enrollments, certificates, payments
 - Celery active (certificate PDF generation)
 - Docker Compose on VPS DigitalOcean (NYC1), 1.9GB RAM, 48GB disk

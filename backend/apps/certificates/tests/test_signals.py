@@ -1,9 +1,10 @@
 """Tests for certificate auto-generation signal."""
 
-import pytest
 from unittest.mock import patch
 
 from django.utils import timezone
+
+import pytest
 
 from apps.certificates.models import Certificate
 from apps.enrollments.factories import EnrollmentFactory

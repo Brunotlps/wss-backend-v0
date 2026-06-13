@@ -1,14 +1,14 @@
 """Tests for GoogleOAuthService — authorization URL and callback handling."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from django.test import RequestFactory
+
+import pytest
 
 from apps.users.factories import SocialAccountFactory, UserFactory
 from apps.users.models import SocialAccount, User
 from apps.users.services.google_oauth import GoogleOAuthService
-
 
 # ---------------------------------------------------------------------------
 # Etapa 2 — get_authorization_url
@@ -100,7 +100,9 @@ class TestHandleCallbackStateValidation:
         self.factory = RequestFactory()
         self.service = GoogleOAuthService()
 
-    def _make_callback_request(self, session_state="valid-state", session_nonce="valid-nonce"):
+    def _make_callback_request(
+        self, session_state="valid-state", session_nonce="valid-nonce"
+    ):
         request = self.factory.get("/api/auth/google/callback/")
         request.session = {
             "google_oauth_state": session_state,
@@ -233,7 +235,9 @@ class TestFindOrCreateUser:
 
     def test_new_user_profile_created_via_signal(self):
         """New user created from Google must have a Profile (via post_save signal)."""
-        claims = self._claims(sub="google-sub-profile-test", email="profiletest@gmail.com")
+        claims = self._claims(
+            sub="google-sub-profile-test", email="profiletest@gmail.com"
+        )
         user, _ = self.service._find_or_create_user(claims)
         assert hasattr(user, "profile")
         assert user.profile is not None

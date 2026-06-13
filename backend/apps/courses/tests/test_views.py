@@ -6,7 +6,6 @@ import pytest
 
 from apps.courses.factories import CategoryFactory, CourseFactory, ModuleFactory
 from apps.courses.models import Course, Module
-from apps.users.factories import InstructorFactory, UserFactory
 from apps.videos.factories import LessonFactory
 
 

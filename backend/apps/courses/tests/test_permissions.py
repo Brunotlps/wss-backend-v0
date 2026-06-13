@@ -1,10 +1,11 @@
 """Tests for courses permissions."""
 
-import pytest
 from rest_framework import status
 
+import pytest
+
 from apps.courses.factories import CourseFactory
-from apps.users.factories import InstructorFactory, UserFactory
+from apps.users.factories import InstructorFactory
 
 
 @pytest.mark.django_db

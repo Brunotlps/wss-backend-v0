@@ -1,11 +1,13 @@
 """Tests for payment endpoint throttling."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 from django.core.cache import cache
 from django.urls import reverse
+
 from rest_framework import status
+
+import pytest
 
 from apps.courses.factories import CourseFactory
 

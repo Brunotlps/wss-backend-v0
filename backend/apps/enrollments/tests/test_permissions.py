@@ -1,11 +1,11 @@
 """Tests for enrollments permissions."""
 
-import pytest
 from rest_framework import status
+
+import pytest
 
 from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory, LessonProgressFactory
-from apps.users.factories import InstructorFactory, UserFactory
 from apps.videos.factories import LessonFactory
 
 
@@ -40,18 +40,14 @@ class TestIsEnrollmentOwner:
         response = staff_client.delete(f"{self.URL}{enrollment.pk}/")
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
-    def test_instructor_can_read_own_course_enrollment(
-        self, instructor_client
-    ):
+    def test_instructor_can_read_own_course_enrollment(self, instructor_client):
         """Instructor can view enrollments for their course (read-only)."""
         course = CourseFactory(instructor=instructor_client.user)
         enrollment = EnrollmentFactory(course=course)
         response = instructor_client.get(f"{self.URL}{enrollment.pk}/")
         assert response.status_code == status.HTTP_200_OK
 
-    def test_instructor_cannot_delete_course_enrollment(
-        self, instructor_client
-    ):
+    def test_instructor_cannot_delete_course_enrollment(self, instructor_client):
         """Instructor cannot delete a student's enrollment from their course."""
         course = CourseFactory(instructor=instructor_client.user)
         enrollment = EnrollmentFactory(course=course)
@@ -69,9 +65,7 @@ class TestIsEnrolledOrInstructor:
         """Student can access their own lesson progress."""
         enrollment = EnrollmentFactory(user=auth_client.user)
         lesson = LessonFactory(course=enrollment.course)
-        progress = LessonProgressFactory(
-            enrollment=enrollment, lesson=lesson
-        )
+        progress = LessonProgressFactory(enrollment=enrollment, lesson=lesson)
         response = auth_client.get(f"{self.URL}{progress.pk}/")
         assert response.status_code == status.HTTP_200_OK
 
@@ -93,8 +87,6 @@ class TestIsEnrolledOrInstructor:
         course = CourseFactory(instructor=instructor_client.user)
         enrollment = EnrollmentFactory(course=course)
         lesson = LessonFactory(course=course, order=1)
-        progress = LessonProgressFactory(
-            enrollment=enrollment, lesson=lesson
-        )
+        progress = LessonProgressFactory(enrollment=enrollment, lesson=lesson)
         response = instructor_client.get(f"{self.URL}{progress.pk}/")
         assert response.status_code == status.HTTP_200_OK

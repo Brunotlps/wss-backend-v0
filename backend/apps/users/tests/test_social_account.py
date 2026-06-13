@@ -1,7 +1,8 @@
 """Tests for SocialAccount model."""
 
-import pytest
 from django.db import IntegrityError
+
+import pytest
 
 from apps.users.factories import UserFactory
 from apps.users.models import SocialAccount

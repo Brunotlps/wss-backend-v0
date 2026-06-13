@@ -16,8 +16,10 @@ def health_check(request):
     Returns:
         200: {"status": "ok", "message": ..., "version": ...}
     """
-    return Response({
-        "status": "ok",
-        "message": "WSS Backend API is running!",
-        "version": "1.0.0",
-    })
+    return Response(
+        {
+            "status": "ok",
+            "message": "WSS Backend API is running!",
+            "version": "1.0.0",
+        }
+    )
