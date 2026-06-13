@@ -170,18 +170,38 @@ class TestUserViewSet:
 
     LIST_URL = "/api/users/"
 
-    def test_list_users_is_public(self, api_client):
-        """Unauthenticated users can list users (IsOwnerOrReadOnly allows reads)."""
+    def test_list_users_denies_anonymous(self, api_client):
+        """Anonymous listing is rejected — no public enumeration of user PII."""
         UserFactory.create_batch(3)
         response = api_client.get(self.LIST_URL)
-        assert response.status_code == status.HTTP_200_OK
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    def test_retrieve_user_is_public(self, api_client):
-        """Any user can retrieve a user profile."""
+    def test_retrieve_user_denies_anonymous(self, api_client):
+        """Anonymous retrieve is rejected — email/PII not exposed to the public."""
         user = UserFactory()
         response = api_client.get(f"{self.LIST_URL}{user.pk}/")
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_list_users_non_staff_sees_only_self(self, auth_client):
+        """A regular user listing /api/users/ sees only their own record."""
+        UserFactory.create_batch(3)  # other users
+        response = auth_client.get(self.LIST_URL)
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["email"] == user.email
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == auth_client.user.pk
+
+    def test_retrieve_other_user_non_staff_returns_404(self, auth_client):
+        """A regular user cannot retrieve another user's record (filtered out → 404)."""
+        other = UserFactory()
+        response = auth_client.get(f"{self.LIST_URL}{other.pk}/")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_staff_can_list_all_users(self, staff_client):
+        """Staff retain full oversight — they see every user."""
+        UserFactory.create_batch(3)
+        response = staff_client.get(self.LIST_URL)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 4  # 3 created + the staff user itself
 
     def test_update_own_user_returns_200(self, auth_client):
         """User can update their own record."""
@@ -189,18 +209,17 @@ class TestUserViewSet:
         response = auth_client.patch(url, {"first_name": "Changed"})
         assert response.status_code == status.HTTP_200_OK
 
-    def test_update_other_user_returns_403(self, auth_client):
-        """User cannot update another user's record."""
+    def test_update_other_user_returns_404(self, auth_client):
+        """Another user's record is filtered out of the queryset → 404 (info-hiding)."""
         other = UserFactory()
         response = auth_client.patch(
             f"{self.LIST_URL}{other.pk}/", {"first_name": "Hacked"}
         )
-        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_delete_by_non_staff_returns_403(self, auth_client):
-        """Non-staff users cannot delete records."""
-        other = UserFactory()
-        response = auth_client.delete(f"{self.LIST_URL}{other.pk}/")
+    def test_delete_own_record_by_non_staff_returns_403(self, auth_client):
+        """Non-staff cannot delete even their own record (delete is staff-only)."""
+        response = auth_client.delete(f"{self.LIST_URL}{auth_client.user.pk}/")
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_delete_by_staff_returns_204(self, staff_client):
@@ -208,3 +227,27 @@ class TestUserViewSet:
         user = UserFactory()
         response = staff_client.delete(f"{self.LIST_URL}{user.pk}/")
         assert response.status_code == status.HTTP_204_NO_CONTENT
+
+
+@pytest.mark.django_db
+class TestProfileViewSet:
+    """Tests for /api/profiles/ access control."""
+
+    LIST_URL = "/api/profiles/"
+
+    def test_list_profiles_denies_anonymous(self, api_client):
+        """Anonymous listing is rejected — profiles carry PII (birth_date, links)."""
+        UserFactory.create_batch(2)  # profiles created by signal
+        response = api_client.get(self.LIST_URL)
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_list_profiles_non_staff_sees_only_own(self, auth_client):
+        """A regular user sees only their own profile (verified by a distinct field)."""
+        UserFactory.create_batch(2)  # other users' profiles
+        own = auth_client.user.profile
+        own.bio = "this-is-mine"
+        own.save(update_fields=["bio"])
+        response = auth_client.get(self.LIST_URL)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["bio"] == "this-is-mine"
