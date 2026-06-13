@@ -1,7 +1,8 @@
 """Tests for IsCertificateOwner permission."""
 
-import pytest
 from rest_framework import status
+
+import pytest
 
 from apps.certificates.factories import CertificateFactory
 from apps.enrollments.factories import EnrollmentFactory
@@ -36,6 +37,6 @@ class TestIsCertificateOwner:
 
     def test_unauthenticated_cannot_access_certificates(self, api_client):
         """Unauthenticated users cannot list or retrieve certificates."""
-        cert = CertificateFactory()
+        CertificateFactory()
         response = api_client.get(self.URL)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED

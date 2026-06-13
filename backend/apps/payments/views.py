@@ -10,14 +10,16 @@ Endpoints:
 
 import logging
 
-import stripe
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+import stripe
 
 from apps.courses.models import Course
 from apps.enrollments.models import Enrollment
@@ -194,8 +196,7 @@ class StripeWebhookView(APIView):
 
         elif event_type == "payment_intent.payment_failed":
             logger.warning(
-                "Payment failed: payment_intent=%s, "
-                "user_id=%s, course_id=%s",
+                "Payment failed: payment_intent=%s, " "user_id=%s, course_id=%s",
                 pi_id,
                 metadata.get("user_id", "N/A"),
                 metadata.get("course_id", "N/A"),

@@ -3,10 +3,7 @@
 import pytest
 
 from apps.users.factories import InstructorFactory, UserFactory
-from apps.users.serializers import (
-    UserRegistrationSerializer,
-    UserUpdateSerializer,
-)
+from apps.users.serializers import UserRegistrationSerializer, UserUpdateSerializer
 
 
 @pytest.mark.django_db
@@ -39,9 +36,7 @@ class TestUserRegistrationSerializer:
 
     def test_weak_password_is_invalid(self):
         """Password '12345678' is rejected by Django validators."""
-        payload = self._valid_payload(
-            password="12345678", password_confirm="12345678"
-        )
+        payload = self._valid_payload(password="12345678", password_confirm="12345678")
         serializer = UserRegistrationSerializer(data=payload)
         assert not serializer.is_valid()
         assert "password" in serializer.errors
@@ -57,7 +52,7 @@ class TestUserRegistrationSerializer:
         """Password field is write_only — not present in serializer data."""
         serializer = UserRegistrationSerializer(data=self._valid_payload())
         assert serializer.is_valid()
-        user = serializer.save()
+        serializer.save()
         # Confirmed via field definition (write_only=True)
         assert "password" not in serializer.data
 

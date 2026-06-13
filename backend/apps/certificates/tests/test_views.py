@@ -1,13 +1,11 @@
 """Tests for Certificate API views."""
 
-import pytest
-from unittest.mock import patch
-
 from rest_framework import status
+
+import pytest
 
 from apps.certificates.factories import CertificateFactory
 from apps.enrollments.factories import EnrollmentFactory
-from apps.users.factories import UserFactory
 
 
 @pytest.mark.django_db
@@ -94,7 +92,7 @@ class TestCertificatePermissions:
 
     def test_staff_can_see_any_certificate(self, staff_client):
         """Staff members can retrieve any certificate."""
-        cert = CertificateFactory()
+        CertificateFactory()
         # Staff queryset is still filtered (only own), but permission grants access
         # Create own enrollment cert to verify staff access
         enrollment = EnrollmentFactory(user=staff_client.user)

@@ -1,7 +1,8 @@
 """Tests for enrollment completion signal (LessonProgress → Enrollment)."""
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory, LessonProgressFactory
@@ -76,9 +77,7 @@ class TestCheckCourseCompletion:
         # No lessons exist — saving a progress for an unrelated lesson
         # simulates an edge case (e.g. lesson deleted after progress created)
         unrelated_lesson = LessonFactory()
-        progress = LessonProgressFactory(
-            enrollment=enrollment, lesson=unrelated_lesson
-        )
+        progress = LessonProgressFactory(enrollment=enrollment, lesson=unrelated_lesson)
         progress.completed = True
         progress.save()
         enrollment.refresh_from_db()

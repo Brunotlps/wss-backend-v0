@@ -7,8 +7,9 @@ completion does not block the request/response cycle.
 
 import logging
 
-from celery import shared_task
 from django.utils import timezone
+
+from celery import shared_task
 
 from apps.certificates.utils import generate_certificate_pdf
 
@@ -31,11 +32,15 @@ def generate_certificate_pdf_async(self, certificate_id: int) -> None:
     try:
         certificate = Certificate.objects.get(id=certificate_id)
     except Certificate.DoesNotExist:
-        logger.error("Certificate %d not found — skipping PDF generation.", certificate_id)
+        logger.error(
+            "Certificate %d not found — skipping PDF generation.", certificate_id
+        )
         return
 
     if certificate.is_valid:
-        logger.debug("Certificate %d already has a valid PDF — skipping.", certificate_id)
+        logger.debug(
+            "Certificate %d already has a valid PDF — skipping.", certificate_id
+        )
         return
 
     logger.info(

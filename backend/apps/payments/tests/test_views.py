@@ -1,14 +1,14 @@
 """Tests for Payment API endpoints."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
 from rest_framework import status
+
+import pytest
 
 from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory
 from apps.payments.factories import PaymentFactory
-from apps.payments.models import Payment
-from apps.users.factories import UserFactory
 
 
 @pytest.mark.django_db

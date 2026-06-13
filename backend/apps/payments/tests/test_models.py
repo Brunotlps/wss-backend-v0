@@ -53,7 +53,7 @@ class TestPaymentModel:
     def test_ordering_is_newest_first(self):
         """Payments are ordered by -created_at."""
         user = UserFactory()
-        p1 = PaymentFactory(user=user)
+        PaymentFactory(user=user)
         p2 = PaymentFactory(user=user)
         payments = list(Payment.objects.filter(user=user))
         assert payments[0].pk == p2.pk

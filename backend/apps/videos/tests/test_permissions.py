@@ -1,12 +1,14 @@
 """Tests for videos permissions: IsEnrolled, IsCourseInstructorOrReadOnly."""
 
-import pytest
 from django.core.cache import cache
+
 from rest_framework import status
+
+import pytest
 
 from apps.courses.factories import CourseFactory
 from apps.enrollments.models import Enrollment
-from apps.users.factories import InstructorFactory, UserFactory
+from apps.users.factories import InstructorFactory
 from apps.videos.factories import LessonFactory, VideoFactory
 
 
@@ -44,9 +46,7 @@ class TestIsEnrolled:
         course = CourseFactory(is_published=True)
         LessonFactory(course=course, order=1)
         lesson2 = LessonFactory(course=course, order=2)
-        Enrollment.objects.create(
-            user=auth_client.user, course=course, is_active=True
-        )
+        Enrollment.objects.create(user=auth_client.user, course=course, is_active=True)
         response = auth_client.get(f"{self.URL}{lesson2.pk}/")
         assert response.status_code == status.HTTP_200_OK
 
@@ -60,9 +60,7 @@ class TestIsEnrolled:
 
     def test_instructor_can_access_own_course_lesson(self, instructor_client):
         """Course instructor bypasses enrollment check for their own course."""
-        course = CourseFactory(
-            instructor=instructor_client.user, is_published=True
-        )
+        course = CourseFactory(instructor=instructor_client.user, is_published=True)
         LessonFactory(course=course, order=1)
         lesson2 = LessonFactory(course=course, order=2)
         response = instructor_client.get(f"{self.URL}{lesson2.pk}/")
@@ -73,9 +71,7 @@ class TestIsEnrolled:
         course = CourseFactory(is_published=True)
         LessonFactory(course=course, order=1)
         lesson2 = LessonFactory(course=course, order=2)
-        Enrollment.objects.create(
-            user=auth_client.user, course=course, is_active=True
-        )
+        Enrollment.objects.create(user=auth_client.user, course=course, is_active=True)
         # First request populates cache
         auth_client.get(f"{self.URL}{lesson2.pk}/")
         cache_key = f"enrollment:{auth_client.user.id}:{course.id}"
@@ -101,9 +97,7 @@ class TestIsCourseInstructorOrReadOnly:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["title"] == "Updated Title"
 
-    def test_instructor_cannot_update_other_course_lesson(
-        self, instructor_client
-    ):
+    def test_instructor_cannot_update_other_course_lesson(self, instructor_client):
         """Instructor cannot update a lesson from another instructor's course."""
         other_instructor = InstructorFactory()
         course = CourseFactory(instructor=other_instructor, is_published=True)

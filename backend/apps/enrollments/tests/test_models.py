@@ -1,8 +1,9 @@
 """Tests for Enrollment and LessonProgress models."""
 
-import pytest
 from django.core.cache import cache
 from django.db import IntegrityError
+
+import pytest
 
 from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory, LessonProgressFactory
@@ -55,12 +56,8 @@ class TestEnrollmentModel:
         enrollment = EnrollmentFactory(course=course)
         lesson1 = LessonFactory(course=course, order=1)
         lesson2 = LessonFactory(course=course, order=2)
-        LessonProgressFactory(
-            enrollment=enrollment, lesson=lesson1, completed=True
-        )
-        LessonProgressFactory(
-            enrollment=enrollment, lesson=lesson2, completed=False
-        )
+        LessonProgressFactory(enrollment=enrollment, lesson=lesson1, completed=True)
+        LessonProgressFactory(enrollment=enrollment, lesson=lesson2, completed=False)
         assert enrollment.progress_percentage == 50.0
 
     def test_progress_percentage_all_completed(self):
@@ -69,12 +66,8 @@ class TestEnrollmentModel:
         enrollment = EnrollmentFactory(course=course)
         lesson1 = LessonFactory(course=course, order=1)
         lesson2 = LessonFactory(course=course, order=2)
-        LessonProgressFactory(
-            enrollment=enrollment, lesson=lesson1, completed=True
-        )
-        LessonProgressFactory(
-            enrollment=enrollment, lesson=lesson2, completed=True
-        )
+        LessonProgressFactory(enrollment=enrollment, lesson=lesson1, completed=True)
+        LessonProgressFactory(enrollment=enrollment, lesson=lesson2, completed=True)
         assert enrollment.progress_percentage == 100.0
 
     def test_total_watched_duration_returns_sum(self):
@@ -110,12 +103,8 @@ class TestEnrollmentModel:
         enrollment = EnrollmentFactory(course=course)
         lesson1 = LessonFactory(course=course, order=1)
         lesson2 = LessonFactory(course=course, order=2)
-        LessonProgressFactory(
-            enrollment=enrollment, lesson=lesson1, completed=True
-        )
-        LessonProgressFactory(
-            enrollment=enrollment, lesson=lesson2, completed=False
-        )
+        LessonProgressFactory(enrollment=enrollment, lesson=lesson1, completed=True)
+        LessonProgressFactory(enrollment=enrollment, lesson=lesson2, completed=False)
         assert enrollment.get_next_lesson() == lesson2
 
     def test_get_next_lesson_returns_none_when_all_done(self):
@@ -123,9 +112,7 @@ class TestEnrollmentModel:
         course = CourseFactory()
         enrollment = EnrollmentFactory(course=course)
         lesson = LessonFactory(course=course, order=1)
-        LessonProgressFactory(
-            enrollment=enrollment, lesson=lesson, completed=True
-        )
+        LessonProgressFactory(enrollment=enrollment, lesson=lesson, completed=True)
         assert enrollment.get_next_lesson() is None
 
     def test_save_invalidates_enrollment_cache(self):

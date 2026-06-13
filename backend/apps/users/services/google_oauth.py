@@ -5,10 +5,11 @@ import secrets
 from typing import Any
 from urllib.parse import urlencode
 
-import requests as http_requests
 from django.conf import settings
-from google.oauth2 import id_token
+
+import requests as http_requests
 from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 from apps.users.models import SocialAccount, User
 

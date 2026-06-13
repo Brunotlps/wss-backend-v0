@@ -26,9 +26,7 @@ class PaymentSerializer(serializers.ModelSerializer):
 class PaymentIntentRequestSerializer(serializers.Serializer):
     """Validates the body for POST /api/payments/create-intent/."""
 
-    course_id = serializers.IntegerField(
-        help_text="ID of the course to purchase."
-    )
+    course_id = serializers.IntegerField(help_text="ID of the course to purchase.")
 
 
 class PaymentIntentResponseSerializer(serializers.Serializer):

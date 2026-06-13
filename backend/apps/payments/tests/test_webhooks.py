@@ -1,14 +1,12 @@
 """Tests for the Stripe webhook endpoint."""
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
 
-from apps.courses.factories import CourseFactory
-from apps.payments.factories import PaymentFactory
-from apps.payments.models import Payment
-from apps.users.factories import UserFactory
+import pytest
 
+from apps.courses.factories import CourseFactory
+from apps.users.factories import UserFactory
 
 WEBHOOK_URL = "/api/webhooks/stripe/"
 
@@ -64,12 +62,15 @@ class TestStripeWebhookView:
         mock_event.type = "payment_intent.succeeded"
         mock_event.data = event_data["data"]
 
-        with patch(
-            "apps.payments.views.StripeService.verify_webhook_signature",
-            return_value=mock_event,
-        ), patch(
-            "apps.payments.views.StripeService.handle_payment_success"
-        ) as mock_handle:
+        with (
+            patch(
+                "apps.payments.views.StripeService.verify_webhook_signature",
+                return_value=mock_event,
+            ),
+            patch(
+                "apps.payments.views.StripeService.handle_payment_success"
+            ) as mock_handle,
+        ):
             response = api_client.post(
                 WEBHOOK_URL,
                 data=json.dumps(event_data).encode(),
@@ -90,12 +91,15 @@ class TestStripeWebhookView:
         mock_event.type = "payment_intent.succeeded"
         mock_event.data = event_data["data"]
 
-        with patch(
-            "apps.payments.views.StripeService.verify_webhook_signature",
-            return_value=mock_event,
-        ), patch(
-            "apps.payments.views.StripeService.handle_payment_success",
-            side_effect=ValueError("pi_webhook_001 already processed"),
+        with (
+            patch(
+                "apps.payments.views.StripeService.verify_webhook_signature",
+                return_value=mock_event,
+            ),
+            patch(
+                "apps.payments.views.StripeService.handle_payment_success",
+                side_effect=ValueError("pi_webhook_001 already processed"),
+            ),
         ):
             response = api_client.post(
                 WEBHOOK_URL,
@@ -180,12 +184,15 @@ class TestStripeWebhookView:
         mock_event.type = "payment_intent.succeeded"
         mock_event.data = event_data["data"]
 
-        with patch(
-            "apps.payments.views.StripeService.verify_webhook_signature",
-            return_value=mock_event,
-        ), patch(
-            "apps.payments.views.StripeService.handle_payment_success",
-            side_effect=RuntimeError("unexpected db error"),
+        with (
+            patch(
+                "apps.payments.views.StripeService.verify_webhook_signature",
+                return_value=mock_event,
+            ),
+            patch(
+                "apps.payments.views.StripeService.handle_payment_success",
+                side_effect=RuntimeError("unexpected db error"),
+            ),
         ):
             response = api_client.post(
                 WEBHOOK_URL,

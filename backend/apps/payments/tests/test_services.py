@@ -1,10 +1,10 @@
 """Tests for StripeService business logic."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from apps.courses.factories import CourseFactory
-from apps.enrollments.models import Enrollment
 from apps.payments.factories import PaymentFactory
 from apps.payments.models import Payment
 from apps.payments.services import StripeService
@@ -155,6 +155,7 @@ class TestStripeServiceHandlePaymentSuccess:
     def test_payment_and_enrollment_are_atomic(self):
         """If enrollment creation fails, payment is also rolled back."""
         from unittest.mock import patch
+
         from django.db import IntegrityError
 
         user = UserFactory()

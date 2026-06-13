@@ -14,9 +14,7 @@ class IsPaymentOwner(permissions.BasePermission):
 
     message = "You do not have permission to access this payment."
 
-    def has_object_permission(
-        self, request: object, view: object, obj: object
-    ) -> bool:
+    def has_object_permission(self, request: object, view: object, obj: object) -> bool:
         """Allow access to staff or the payment owner."""
         if request.user.is_staff:
             return True

@@ -1,9 +1,10 @@
 """Tests for User API views."""
 
-import pytest
 from rest_framework import status
 
-from apps.users.factories import InstructorFactory, UserFactory
+import pytest
+
+from apps.users.factories import UserFactory
 
 
 @pytest.mark.django_db

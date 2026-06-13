@@ -1,15 +1,16 @@
 """Tests for Enrollment and LessonProgress API views."""
 
-import pytest
 from django.core.cache import cache
+
 from rest_framework import status
+
+import pytest
 
 from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory, LessonProgressFactory
 from apps.enrollments.models import Enrollment
 from apps.payments.factories import PaymentFactory
 from apps.payments.models import Payment
-from apps.users.factories import InstructorFactory, UserFactory
 from apps.videos.factories import LessonFactory
 
 
@@ -39,14 +40,12 @@ class TestEnrollmentViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] == 1
 
-    def test_instructor_sees_own_and_course_enrollments(
-        self, instructor_client
-    ):
+    def test_instructor_sees_own_and_course_enrollments(self, instructor_client):
         """Instructors see their own enrollments and enrollments in their courses."""
         course = CourseFactory(instructor=instructor_client.user)
-        student_enrollment = EnrollmentFactory(course=course)
-        own_enrollment = EnrollmentFactory(user=instructor_client.user)
-        other_enrollment = EnrollmentFactory()  # Unrelated
+        EnrollmentFactory(course=course)
+        EnrollmentFactory(user=instructor_client.user)
+        EnrollmentFactory()  # Unrelated
         response = instructor_client.get(self.URL)
         assert response.data["count"] == 2  # student's + own
 
@@ -70,7 +69,9 @@ class TestEnrollmentViewSet:
         response = auth_client.post(self.URL, {"course_id": course.pk})
         assert response.status_code == status.HTTP_201_CREATED
 
-    def test_create_enrollment_paid_course_without_payment_returns_402(self, auth_client):
+    def test_create_enrollment_paid_course_without_payment_returns_402(
+        self, auth_client
+    ):
         """Paid course requires a successful payment before enrollment."""
         course = CourseFactory()
         response = auth_client.post(self.URL, {"course_id": course.pk})
@@ -181,7 +182,7 @@ class TestLessonProgressViewSet:
         enrollment = EnrollmentFactory(user=auth_client.user)
         lesson = LessonFactory(course=enrollment.course)
         LessonProgressFactory(enrollment=enrollment, lesson=lesson)
-        other_progress = LessonProgressFactory()  # Another student
+        LessonProgressFactory()  # Another student
         response = auth_client.get(self.URL)
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] == 1
@@ -191,10 +192,8 @@ class TestLessonProgressViewSet:
         course = CourseFactory(instructor=instructor_client.user)
         enrollment = EnrollmentFactory(course=course)
         lesson = LessonFactory(course=course, order=1)
-        student_progress = LessonProgressFactory(
-            enrollment=enrollment, lesson=lesson
-        )
-        other_progress = LessonProgressFactory()  # Unrelated
+        LessonProgressFactory(enrollment=enrollment, lesson=lesson)
+        LessonProgressFactory()  # Unrelated
         response = instructor_client.get(self.URL)
         assert response.data["count"] == 1
 

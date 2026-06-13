@@ -105,5 +105,8 @@ class SocialAccountAdmin(admin.ModelAdmin):
     fieldsets = (
         (_("Link"), {"fields": ("user", "provider", "uid")}),
         (_("Provider Data"), {"fields": ("extra_data",), "classes": ("collapse",)}),
-        (_("Timestamps"), {"fields": ("created_at", "updated_at"), "classes": ("collapse",)}),
+        (
+            _("Timestamps"),
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
+        ),
     )

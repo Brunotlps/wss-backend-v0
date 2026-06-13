@@ -1,10 +1,10 @@
 """Tests for Video and Lesson API views."""
 
-import pytest
 from rest_framework import status
 
+import pytest
+
 from apps.courses.factories import CourseFactory
-from apps.users.factories import InstructorFactory, UserFactory
 from apps.videos.factories import LessonFactory, VideoFactory
 
 
@@ -95,9 +95,7 @@ class TestLessonViewSet:
         response = auth_client.get(self.URL)
         assert response.data["count"] == 1
 
-    def test_instructor_sees_own_unpublished_course_lessons(
-        self, instructor_client
-    ):
+    def test_instructor_sees_own_unpublished_course_lessons(self, instructor_client):
         """Instructor sees lessons from their own unpublished courses."""
         own_course = CourseFactory(
             instructor=instructor_client.user, is_published=False

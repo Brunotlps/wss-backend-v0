@@ -1,17 +1,17 @@
 """Tests for video file validators."""
 
-import pytest
-from io import BytesIO
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 
+import pytest
+
 from apps.videos.validators import (
     MAX_VIDEO_SIZE,
+    validate_video_extension,
     validate_video_mimetype,
     validate_video_size,
-    validate_video_extension,
 )
 
 

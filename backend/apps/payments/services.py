@@ -11,9 +11,10 @@ Classes:
 import logging
 from typing import Any, Dict
 
-import stripe
 from django.conf import settings
 from django.db import transaction
+
+import stripe
 
 logger = logging.getLogger(__name__)
 
@@ -160,12 +161,8 @@ class StripeService:
         payment_intent_id = payment_intent["id"]
 
         # Idempotency: skip already-processed intents
-        if Payment.objects.filter(
-            stripe_payment_intent_id=payment_intent_id
-        ).exists():
-            raise ValueError(
-                f"Payment {payment_intent_id} already processed"
-            )
+        if Payment.objects.filter(stripe_payment_intent_id=payment_intent_id).exists():
+            raise ValueError(f"Payment {payment_intent_id} already processed")
 
         user = User.objects.get(id=user_id)
         course = Course.objects.get(id=course_id)
