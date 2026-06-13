@@ -23,7 +23,7 @@ Execute systematic PEP8 validation across all Django apps, fixing code style iss
 **Create pyproject.toml (black + isort config):**
 
 ```bash
-cat > /home/bruno_teixeira/projects/wss-backend-v0/backend/pyproject.toml << 'EOF'
+cat > backend/pyproject.toml << 'EOF'
 [tool.black]
 line-length = 88
 target-version = ['py311']
@@ -64,7 +64,7 @@ EOF
 **Create .flake8 config:**
 
 ```bash
-cat > /home/bruno_teixeira/projects/wss-backend-v0/backend/.flake8 << 'EOF'
+cat > backend/.flake8 << 'EOF'
 [flake8]
 max-line-length = 88
 extend-ignore = E203, W503

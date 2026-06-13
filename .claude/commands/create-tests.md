@@ -430,6 +430,77 @@ Coverage by app:
 Tests: X passed in Xs"
 ```
 
+## Security & Regression Deny-Tests (audit remediation)
+
+For the 2026-06 audit fixes, the test is the **RED step** of `/fix-issue` — write the deny/
+regression test first, watch it fail, then apply the layer fix. Canonical patterns below; the
+per-issue gaps live in
+[.claude/context/audit/remediation/07-tests.md](.claude/context/audit/remediation/07-tests.md)
+(#17, #34, #50, #72, #82, #86).
+
+### Mass-assignment ignored (#30, #39, #40)
+```python
+@pytest.mark.django_db
+def test_register_ignores_is_instructor_flag(api_client):
+    """A client cannot self-grant a privileged flag at creation."""
+    resp = api_client.post("/api/auth/register/",
+                           {"email": "a@b.com", "password": "Str0ng!pw", "is_instructor": True})
+    assert resp.status_code == 201
+    assert User.objects.get(email="a@b.com").is_instructor is False
+```
+
+### Anonymous / non-owner access denied (#41) — assert the *secure* behavior
+```python
+@pytest.mark.django_db
+def test_user_list_denies_anonymous(api_client):
+    UserFactory.create_batch(2)
+    assert api_client.get("/api/users/").status_code in (401, 403)
+```
+> Several existing tests assert the *insecure* behavior as expected — rewrite, don't add alongside.
+
+### Cross-object integrity (#29)
+```python
+def test_progress_rejects_foreign_course_lesson(api_client, enrollment, other_course_lesson):
+    api_client.force_authenticate(enrollment.user)
+    resp = api_client.post("/api/progress/",
+                           {"enrollment": enrollment.id, "lesson": other_course_lesson.id,
+                            "completed": True}, format="json")
+    assert resp.status_code == 400
+```
+
+### Stripe webhook signature asserted, not mocked away (#17)
+Patch one level below `verify_webhook_signature`:
+```python
+@patch("stripe.Webhook.construct_event")
+def test_webhook_verifies_signature(mock_construct, ...):
+    ... # assert called with raw body, the Stripe-Signature header, settings.STRIPE_WEBHOOK_SECRET
+    mock_construct.assert_called_once()
+```
+
+### Celery task idempotency / failure (#82)
+```python
+def test_task_is_idempotent_when_pdf_exists(certificate_with_pdf):
+    generate_certificate_pdf_async(certificate_with_pdf.id)  # eager
+    assert mock_render.call_count == 0  # no regeneration
+
+def test_task_swallows_deleted_certificate():
+    generate_certificate_pdf_async(999999)  # DoesNotExist → no raise
+```
+
+### TimeStampedModel behavioral contract (#86)
+```python
+@pytest.mark.django_db
+def test_timestamps_contract():
+    obj = CourseFactory()                      # any concrete subclass
+    created, updated = obj.created_at, obj.updated_at
+    obj.name = "x"; obj.save()
+    obj.refresh_from_db()
+    assert obj.created_at == created and obj.updated_at > updated
+```
+
+**Reminders:** mock externals (Stripe, Celery `.delay`); allow + deny for every permission; assert
+exact status codes (402/409/403/410); ≥90% on payments / enrollments / permissions / certificates.
+
 ## Common Patterns
 
 ### API Client Fixture
