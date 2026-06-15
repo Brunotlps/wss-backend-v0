@@ -72,6 +72,16 @@ CORS_ALLOW_ALL_ORIGINS = True
 CELERY_TASK_ALWAYS_EAGER = True
 
 
+# Cache — local-memory in development and the test suite, so neither requires a
+# running Redis instance. Production uses the shared Redis cache from base.py
+# (see audit issue #97). Tests reset state via the autouse clear_cache fixture.
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    },
+}
+
+
 # Logging Configuration for Development
 LOGGING = {
     'version': 1,

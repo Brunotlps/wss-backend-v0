@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from .models import Certificate
 from .permissions import IsCertificateOwner
 from .serializers import CertificateSerializer
+from .throttles import VerifyThrottle
 
 
 class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
@@ -74,6 +75,7 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         detail=False,
         methods=["get"],
         permission_classes=[permissions.AllowAny],
+        throttle_classes=[VerifyThrottle],
         url_path="validate/(?P<code>[^/.]+)",
     )
     def validate_by_code(self, request, code=None):

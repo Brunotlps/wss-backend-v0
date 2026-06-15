@@ -204,6 +204,23 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+        'login': '5/hour',
+        'register': '5/day',
+        'oauth': '20/hour',
+        'verify': '20/min',
+        'health': '120/min',
+    },
+    # Upstream proxies in front of the app (Cloudflare + Nginx). Without this,
+    # throttling keys every client to the proxy IP, throttling the whole site
+    # at once. See audit issue #48.
+    'NUM_PROXIES': env.int('NUM_PROXIES', default=2),
 }
 
 
@@ -250,6 +267,50 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+
+
+# Cache (django-redis)
+# https://github.com/jazzband/django-redis
+#
+# A shared Redis cache so throttle counters and the IsEnrolled cache stay
+# consistent across Gunicorn workers (audit issue #97; a per-process
+# LocMemCache would multiply every rate limit by the worker count). Uses a
+# separate Redis DB from the Celery broker to avoid key collisions; the default
+# derives the host from CELERY_BROKER_URL so production targets the same Redis.
+# development.py overrides this with LocMemCache so the test suite needs no Redis.
+
+
+def _redis_url_with_db(url: str, db: int) -> str:
+    """Return ``url`` with its Redis logical DB swapped to ``db``.
+
+    Preserves scheme, host, port and any query string, so a broker URL with or
+    without a ``/<db>`` suffix (or with query params) yields a valid cache URL.
+    """
+    from urllib.parse import urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    return urlunsplit(parts._replace(path=f'/{db}'))
+
+
+REDIS_CACHE_URL = env(
+    'REDIS_CACHE_URL',
+    default=_redis_url_with_db(CELERY_BROKER_URL, 1),
+)
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_CACHE_URL,
+        'KEY_PREFIX': 'wss',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            # Fail-open if Redis is unreachable: cache ops return None instead
+            # of 500ing. Tradeoff: the login/register/oauth throttles become
+            # best-effort during a Redis outage (availability over enforcement).
+            'IGNORE_EXCEPTIONS': True,
+        },
+    },
+}
+DJANGO_REDIS_IGNORE_EXCEPTIONS = True
 
 
 # Stripe Payment Processing

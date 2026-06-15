@@ -1,12 +1,15 @@
 """Views for the core app."""
 
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+
+from .throttles import HealthCheckThrottle
 
 
 @api_view(["GET", "HEAD"])
 @permission_classes([AllowAny])
+@throttle_classes([HealthCheckThrottle])
 def health_check(request):
     """Liveness probe — returns 200 if the process is alive.
 
