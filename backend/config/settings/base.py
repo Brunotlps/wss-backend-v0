@@ -269,6 +269,50 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
 
+# Cache (django-redis)
+# https://github.com/jazzband/django-redis
+#
+# A shared Redis cache so throttle counters and the IsEnrolled cache stay
+# consistent across Gunicorn workers (audit issue #97; a per-process
+# LocMemCache would multiply every rate limit by the worker count). Uses a
+# separate Redis DB from the Celery broker to avoid key collisions; the default
+# derives the host from CELERY_BROKER_URL so production targets the same Redis.
+# development.py overrides this with LocMemCache so the test suite needs no Redis.
+
+
+def _redis_url_with_db(url: str, db: int) -> str:
+    """Return ``url`` with its Redis logical DB swapped to ``db``.
+
+    Preserves scheme, host, port and any query string, so a broker URL with or
+    without a ``/<db>`` suffix (or with query params) yields a valid cache URL.
+    """
+    from urllib.parse import urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    return urlunsplit(parts._replace(path=f'/{db}'))
+
+
+REDIS_CACHE_URL = env(
+    'REDIS_CACHE_URL',
+    default=_redis_url_with_db(CELERY_BROKER_URL, 1),
+)
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': REDIS_CACHE_URL,
+        'KEY_PREFIX': 'wss',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            # Fail-open if Redis is unreachable: cache ops return None instead
+            # of 500ing. Tradeoff: the login/register/oauth throttles become
+            # best-effort during a Redis outage (availability over enforcement).
+            'IGNORE_EXCEPTIONS': True,
+        },
+    },
+}
+DJANGO_REDIS_IGNORE_EXCEPTIONS = True
+
+
 # Stripe Payment Processing
 # https://stripe.com/docs/api
 
