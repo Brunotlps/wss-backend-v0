@@ -32,7 +32,7 @@ from .serializers import (
     UserUpdateSerializer,
 )
 from .services.google_oauth import GoogleOAuthService
-from .throttles import LoginRateThrottle
+from .throttles import LoginRateThrottle, OAuthRateThrottle, RegistrationThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,7 @@ class UserRegistrationView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [RegistrationThrottle]
 
     def post(self, request):
         """
@@ -183,6 +184,12 @@ class UserViewSet(viewsets.ModelViewSet):
     ordering_fields = ["username", "date_joined"]
     ordering = ["-date_joined"]
 
+    def get_throttles(self):
+        """Throttle account creation as registration; defaults elsewhere."""
+        if self.action == "create":
+            return [RegistrationThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         """Scope reads: staff see all users; everyone else only their own record."""
         user = getattr(self.request, "user", None)
@@ -286,6 +293,7 @@ class GoogleLoginView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [OAuthRateThrottle]
 
     def get(self, request):
         """Redirect to Google authorization URL."""
@@ -308,6 +316,7 @@ class GoogleCallbackView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [OAuthRateThrottle]
 
     def get(self, request):
         """Process Google callback and redirect frontend with JWT tokens."""

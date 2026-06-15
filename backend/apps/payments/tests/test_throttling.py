@@ -71,3 +71,19 @@ class TestPaymentIntentThrottling:
         api_client.force_authenticate(user2)
         response = api_client.post(self.URL, payload, format="json")
         assert response.status_code == status.HTTP_200_OK
+
+
+class TestStripeWebhookThrottleExemption:
+    """The Stripe webhook must NOT inherit the global anon throttle.
+
+    Stripe delivers events from a small, fixed set of egress IPs that all
+    share one ``AnonRateThrottle`` bucket; a 429 makes Stripe retry and
+    eventually disable the endpoint, dropping payment/enrollment
+    confirmations. The HMAC signature check is the real guard here.
+    """
+
+    def test_webhook_view_has_no_throttles(self):
+        """Resolved throttles for the webhook view are empty."""
+        from apps.payments.views import StripeWebhookView
+
+        assert StripeWebhookView().get_throttles() == []

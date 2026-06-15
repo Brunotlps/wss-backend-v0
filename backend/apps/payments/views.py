@@ -143,6 +143,9 @@ class StripeWebhookView(APIView):
 
     permission_classes = [AllowAny]
     authentication_classes = []
+    # Exempt from the global anon throttle: Stripe retries from a few fixed
+    # egress IPs that would share one bucket; signature verification guards it.
+    throttle_classes = []
 
     def post(self, request):
         """Handle an incoming Stripe webhook event."""

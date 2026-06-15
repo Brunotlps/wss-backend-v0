@@ -204,6 +204,23 @@ REST_FRAMEWORK = {
         'rest_framework.filters.OrderingFilter',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_CLASSES': (
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+        'login': '5/hour',
+        'register': '5/day',
+        'oauth': '20/hour',
+        'verify': '20/min',
+        'health': '120/min',
+    },
+    # Upstream proxies in front of the app (Cloudflare + Nginx). Without this,
+    # throttling keys every client to the proxy IP, throttling the whole site
+    # at once. See audit issue #48.
+    'NUM_PROXIES': env.int('NUM_PROXIES', default=2),
 }
 
 
