@@ -76,8 +76,8 @@ Dentro de `REST_FRAMEWORK`:
    de #49 (anti brute-force/spam) em produção. Também afeta o cache de `IsEnrolled` (CLAUDE.md).
    **Direção:** configurar Redis compartilhado como `CACHES['default']` (django-redis). O Redis já
    está provisionado (broker/cache do Celery — ver memory `infra_observability_gotchas`).
-   **Ação sugerida:** abrir issue nova (tema infra, relacionado a #48) — requer instalar
-   `django-redis` (pedir aprovação) + config em base/production + deploy.
+   **Issue aberta:** **#97** (severity:blocking, app:infra) — requer instalar `django-redis`
+   (pedir aprovação) + config em base/production + deploy.
 
 3. **[Major — ABERTO] `TokenRefreshView` / `TokenBlacklistView` agora sob anon 100/hour.**
    São chamadas anônimas (refresh token no corpo). Com `NUM_PROXIES` resolvendo o IP real do
