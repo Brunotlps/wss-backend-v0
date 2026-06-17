@@ -22,7 +22,7 @@ class CertificateSerializer(serializers.ModelSerializer):
     - course_title: Course title from enrollment.course
     - instructor_name: Instructor's name from enrollment.course.instructor
     - completion_date: When enrollment was completed
-    - pdf_url: Absolute URL to PDF file (if exists)
+    - download_url: Gated download endpoint for the PDF (None if not generated)
 
     All fields are read-only since certificates are automatically generated
     via Django signals when enrollment.completed = True.
@@ -40,7 +40,7 @@ class CertificateSerializer(serializers.ModelSerializer):
     instructor_name = serializers.CharField(read_only=True)
     completion_date = serializers.DateTimeField(read_only=True)
 
-    pdf_url = serializers.SerializerMethodField()
+    download_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Certificate
@@ -53,34 +53,35 @@ class CertificateSerializer(serializers.ModelSerializer):
             "issued_at",
             "completion_date",
             "is_valid",
-            "pdf_file",
-            "pdf_url",
+            "download_url",
         ]
 
         read_only_fields = [
             "id",
             "certificate_code",
             "issued_at",
-            "pdf_file",
         ]
 
-    def get_pdf_url(self, obj):
+    def get_download_url(self, obj):
         """
-        Return absolute URL to PDF file if it exists.
+        Return the gated download endpoint URL for the PDF (#74).
 
-        If request context is available, builds absolute URI with domain.
-        Otherwise returns relative file URL from MEDIA_URL.
-        Returns None if PDF was not generated (pdf_generation_failed_at is set).
+        The raw ``pdf_file``/``pdf_url`` are never exposed: the PDF embeds PII
+        and was reachable at a guessable public ``/media/`` path. Clients must
+        go through the authenticated, owner-checked ``download`` action, which
+        serves the bytes via Nginx X-Accel-Redirect.
 
         Args:
-            obj (Certificate): Certificate instance
+            obj (Certificate): Certificate instance.
 
         Returns:
-            str | None: Absolute URL to PDF or None if file doesn't exist
+            str | None: Absolute (or relative) URL of the download action, or
+            None if no PDF has been generated yet.
         """
-        if obj.pdf_file:
-            request = self.context.get("request")
-            if request:
-                return request.build_absolute_uri(obj.pdf_file.url)
-            return obj.pdf_file.url
-        return None
+        if not obj.pdf_file:
+            return None
+        request = self.context.get("request")
+        path = f"/api/certificates/{obj.pk}/download/"
+        if request:
+            return request.build_absolute_uri(path)
+        return path
