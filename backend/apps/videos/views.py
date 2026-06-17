@@ -54,6 +54,7 @@ from rest_framework import viewsets
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.request import Request
+from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from django_filters.rest_framework import DjangoFilterBackend
@@ -72,7 +73,9 @@ from .serializers import (
     LessonUpdateSerializer,
     VideoListSerializer,
     VideoSerializer,
+    _video_stream_url,
 )
+from .signing import sign_video_stream, unsign_video_stream
 
 
 class VideoViewSet(viewsets.ModelViewSet):
@@ -314,12 +317,21 @@ class VideoFileView(APIView):
 
     Access mirrors ``IsEnrolled``: free-preview videos are public, course
     instructors and staff bypass enrollment, everyone else must be enrolled.
+
+    A valid short-lived ``sig`` query token (issued by ``VideoStreamURLView``
+    after the enrollment check) also authorizes access without an Authorization
+    header, so a browser ``<video src>`` can stream protected content with
+    native Range/seek support.
     """
 
     permission_classes = [IsEnrolled]
 
     def get(self, request: Request, pk: int) -> HttpResponse:
         """Return an X-Accel-Redirect response for an authorized video file.
+
+        Authorization is granted by either a valid ``sig`` token bound to this
+        video or, failing that, the ``IsEnrolled`` object permission (which also
+        allows free-preview and instructor/staff access).
 
         Args:
             request: The incoming DRF request.
@@ -333,7 +345,10 @@ class VideoFileView(APIView):
             Http404: If the video has no stored file.
         """
         video = get_object_or_404(Video, pk=pk)
-        self.check_object_permissions(request, video)
+
+        if unsign_video_stream(request.query_params.get("sig")) != video.pk:
+            # No valid signature → fall back to enrollment/preview gating.
+            self.check_object_permissions(request, video)
 
         if not video.file:
             raise Http404("Video file not available.")
@@ -343,3 +358,40 @@ class VideoFileView(APIView):
         # Defer the MIME type to Nginx's internal location (mime.types).
         del response["Content-Type"]
         return response
+
+
+class VideoStreamURLView(APIView):
+    """Issue a short-lived signed URL for streaming a protected video.
+
+    The frontend calls this with the user's JWT; once ``IsEnrolled`` passes, it
+    returns a URL to the ``file`` endpoint carrying a signed ``sig`` token. That
+    URL works in a plain ``<video src>`` (no Authorization header), so streaming
+    and seeking are handled natively by Nginx. The token is scoped to this video
+    and expires per ``VIDEO_STREAM_URL_TTL_SECONDS``.
+    """
+
+    permission_classes = [IsEnrolled]
+
+    def get(self, request: Request, pk: int) -> Response:
+        """Return ``{"url": ...}`` with a signed streaming URL.
+
+        Args:
+            request: The incoming DRF request (must carry a valid JWT for
+                non-preview content).
+            pk: Primary key of the requested video.
+
+        Returns:
+            A 200 response with the signed streaming URL.
+
+        Raises:
+            Http404: If the video has no stored file.
+        """
+        video = get_object_or_404(Video, pk=pk)
+        self.check_object_permissions(request, video)
+
+        if not video.file:
+            raise Http404("Video file not available.")
+
+        token = sign_video_stream(video.pk)
+        url = f"{_video_stream_url(video, request)}?sig={token}"
+        return Response({"url": url})

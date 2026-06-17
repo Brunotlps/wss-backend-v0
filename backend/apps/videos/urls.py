@@ -47,7 +47,7 @@ from django.urls import path
 
 from rest_framework.routers import DefaultRouter
 
-from .views import LessonViewSet, VideoFileView, VideoViewSet
+from .views import LessonViewSet, VideoFileView, VideoStreamURLView, VideoViewSet
 
 # Initialize router for automatic URL pattern generation
 router = DefaultRouter()
@@ -61,5 +61,10 @@ router.register("lessons", LessonViewSet, basename="lesson")
 # endpoint (#54): GET /api/videos/{pk}/file/ serves bytes via X-Accel-Redirect
 # only after IsEnrolled passes — there is no public /media/ URL for video files.
 urlpatterns = router.urls + [
+    path(
+        "videos/<int:pk>/stream-url/",
+        VideoStreamURLView.as_view(),
+        name="video-stream-url",
+    ),
     path("videos/<int:pk>/file/", VideoFileView.as_view(), name="video-file"),
 ]
