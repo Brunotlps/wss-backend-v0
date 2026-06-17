@@ -47,10 +47,14 @@ Database Optimization:
 """
 
 from django.db.models import Q
+from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404
 
 from rest_framework import viewsets
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.request import Request
+from rest_framework.views import APIView
 
 from django_filters.rest_framework import DjangoFilterBackend
 
@@ -127,7 +131,11 @@ class VideoViewSet(viewsets.ModelViewSet):
     """
 
     queryset = Video.objects.all()
-    permission_classes = [IsAuthenticatedOrReadOnly, IsInstructorOrReadOnly]
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+        IsInstructorOrReadOnly,
+        IsEnrolled,
+    ]
 
     # Filtering & Search
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -141,6 +149,43 @@ class VideoViewSet(viewsets.ModelViewSet):
         if self.action == "list":
             return VideoListSerializer
         return VideoSerializer
+
+    def get_queryset(self):
+        """Scope visible videos by course publication and ownership (#55).
+
+        IsEnrolled only gates object-level access (retrieve/file), never the
+        list action, so without this scoping ``GET /api/videos/`` would
+        enumerate every video's metadata — including unpublished courses — to
+        anonymous users. Only the list action is scoped here; object actions
+        keep the full queryset and rely on their permissions (IsEnrolled for
+        retrieve/file, IsInstructorOrReadOnly for writes) so instructors can
+        still manage videos not yet attached to a lesson. List visibility
+        mirrors LessonViewSet.get_queryset:
+
+            - staff: all videos (moderation)
+            - instructors: own-course videos + published-course videos
+            - everyone else: published-course videos only
+
+        Returns:
+            QuerySet[Video]: Videos the requesting user is allowed to see.
+        """
+        queryset = super().get_queryset()
+
+        if self.action != "list":
+            return queryset
+
+        user = self.request.user
+
+        if user.is_authenticated and user.is_staff:
+            return queryset
+
+        if user.is_authenticated and user.is_instructor:
+            return queryset.filter(
+                Q(lesson__course__instructor=user)
+                | Q(lesson__course__is_published=True)
+            ).distinct()
+
+        return queryset.filter(lesson__course__is_published=True).distinct()
 
 
 class LessonViewSet(viewsets.ModelViewSet):
@@ -256,3 +301,45 @@ class LessonViewSet(viewsets.ModelViewSet):
 
         # Anonymous and regular users see only lessons from published courses
         return queryset.filter(course__is_published=True)
+
+
+class VideoFileView(APIView):
+    """Serve protected video bytes via Nginx ``X-Accel-Redirect`` (#54).
+
+    Video files must never be reachable through a public ``/media/`` URL, or the
+    enrollment gating only protects JSON metadata while the bytes leak. This view
+    re-runs the enrollment check (``IsEnrolled``) on the requested video and, once
+    granted, delegates the actual transfer to Nginx's ``internal`` ``/protected/``
+    location instead of streaming through Gunicorn.
+
+    Access mirrors ``IsEnrolled``: free-preview videos are public, course
+    instructors and staff bypass enrollment, everyone else must be enrolled.
+    """
+
+    permission_classes = [IsEnrolled]
+
+    def get(self, request: Request, pk: int) -> HttpResponse:
+        """Return an X-Accel-Redirect response for an authorized video file.
+
+        Args:
+            request: The incoming DRF request.
+            pk: Primary key of the requested video.
+
+        Returns:
+            An empty 200 response carrying the ``X-Accel-Redirect`` header so
+            Nginx serves the file from its internal location.
+
+        Raises:
+            Http404: If the video has no stored file.
+        """
+        video = get_object_or_404(Video, pk=pk)
+        self.check_object_permissions(request, video)
+
+        if not video.file:
+            raise Http404("Video file not available.")
+
+        response = HttpResponse(status=200)
+        response["X-Accel-Redirect"] = f"/protected/{video.file.name}"
+        # Defer the MIME type to Nginx's internal location (mime.types).
+        del response["Content-Type"]
+        return response

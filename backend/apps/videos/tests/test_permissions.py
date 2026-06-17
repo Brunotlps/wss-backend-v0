@@ -26,18 +26,25 @@ class TestIsEnrolled:
 
     URL = "/api/lessons/"
 
-    def test_first_lesson_accessible_without_enrollment(self, api_client):
-        """Order=1 lesson is a free preview, accessible to anyone."""
+    def test_free_preview_lesson_accessible_without_enrollment(self, api_client):
+        """Lesson flagged is_free_preview is accessible to anyone (#56)."""
         course = CourseFactory(is_published=True)
-        lesson = LessonFactory(course=course, order=1)
+        lesson = LessonFactory(course=course, order=1, is_free_preview=True)
         response = api_client.get(f"{self.URL}{lesson.pk}/")
         assert response.status_code == status.HTTP_200_OK
 
-    def test_non_first_lesson_requires_enrollment(self, auth_client):
-        """Lesson with order > 1 requires enrollment."""
+    def test_first_lesson_without_preview_flag_requires_enrollment(self, auth_client):
+        """order==1 must NOT grant access on its own — only is_free_preview does (#56)."""
         course = CourseFactory(is_published=True)
-        LessonFactory(course=course, order=1)
-        lesson2 = LessonFactory(course=course, order=2)
+        lesson = LessonFactory(course=course, order=1, is_free_preview=False)
+        response = auth_client.get(f"{self.URL}{lesson.pk}/")
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_non_preview_lesson_requires_enrollment(self, auth_client):
+        """Non-preview lesson requires enrollment."""
+        course = CourseFactory(is_published=True)
+        LessonFactory(course=course, order=1, is_free_preview=True)
+        lesson2 = LessonFactory(course=course, order=2, is_free_preview=False)
         response = auth_client.get(f"{self.URL}{lesson2.pk}/")
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
