@@ -14,19 +14,59 @@ class TestVideoViewSet:
 
     URL = "/api/videos/"
 
-    def test_list_videos_is_public(self, api_client):
-        """Anonymous users can list videos."""
-        VideoFactory.create_batch(3)
-        response = api_client.get(self.URL)
-        assert response.status_code == status.HTTP_200_OK
-        assert response.data["count"] == 3
+    def test_list_videos_scoped_to_published_courses(self, api_client):
+        """Anonymous list shows published-course videos but hides others (#55)."""
+        published = CourseFactory(is_published=True)
+        unpublished = CourseFactory(is_published=False)
+        LessonFactory(course=published, video=VideoFactory(), order=1)
+        LessonFactory(course=published, video=VideoFactory(), order=2)
+        LessonFactory(course=unpublished, video=VideoFactory(), order=1)
+        # Orphan video (no lesson) must not leak to anonymous either.
+        VideoFactory()
 
-    def test_retrieve_video_is_public(self, api_client):
-        """Single video can be retrieved without authentication."""
-        video = VideoFactory(title="Public Video")
+        response = api_client.get(self.URL)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 2
+
+    def test_list_videos_staff_sees_all(self, staff_client):
+        """Staff list includes videos from unpublished courses (#55)."""
+        LessonFactory(
+            course=CourseFactory(is_published=True), video=VideoFactory(), order=1
+        )
+        LessonFactory(
+            course=CourseFactory(is_published=False), video=VideoFactory(), order=1
+        )
+        response = staff_client.get(self.URL)
+        assert response.data["count"] == 2
+
+    def test_list_videos_instructor_sees_own_unpublished(self, instructor_client):
+        """Instructor list includes their own unpublished-course videos (#55)."""
+        own = CourseFactory(instructor=instructor_client.user, is_published=False)
+        LessonFactory(course=own, video=VideoFactory(), order=1)
+        LessonFactory(
+            course=CourseFactory(is_published=False), video=VideoFactory(), order=1
+        )
+        response = instructor_client.get(self.URL)
+        assert response.data["count"] == 1
+
+    def test_retrieve_non_preview_video_requires_enrollment(self, api_client):
+        """Anonymous retrieve of a non-preview video is gated by IsEnrolled (#55)."""
+        video = VideoFactory(title="Paid Video")
+        LessonFactory(video=video, order=2, is_free_preview=False)
+        response = api_client.get(f"{self.URL}{video.pk}/")
+        assert response.status_code in (
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        )
+
+    def test_retrieve_free_preview_video_is_public(self, api_client):
+        """Free-preview video metadata stays publicly retrievable (#56)."""
+        video = VideoFactory(title="Preview Video")
+        LessonFactory(video=video, order=1, is_free_preview=True)
         response = api_client.get(f"{self.URL}{video.pk}/")
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["title"] == "Public Video"
+        assert response.data["title"] == "Preview Video"
 
     def test_create_video_as_instructor_returns_201(self, instructor_client):
         """Instructor can create a video."""
@@ -62,9 +102,12 @@ class TestVideoViewSet:
         assert response.status_code == status.HTTP_204_NO_CONTENT
 
     def test_search_videos_by_title(self, api_client):
-        """Search param filters videos by title."""
-        VideoFactory(title="Django Signals")
-        VideoFactory(title="React Hooks")
+        """Search param filters videos by title (within visible scope)."""
+        course = CourseFactory(is_published=True)
+        LessonFactory(
+            course=course, video=VideoFactory(title="Django Signals"), order=1
+        )
+        LessonFactory(course=course, video=VideoFactory(title="React Hooks"), order=2)
         response = api_client.get(self.URL, {"search": "Django"})
         assert response.data["count"] == 1
         assert "Django" in response.data["results"][0]["title"]

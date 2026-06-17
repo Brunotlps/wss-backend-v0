@@ -1,4 +1,4 @@
-from django.http import FileResponse
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 
 from rest_framework import permissions, status, viewsets
@@ -35,7 +35,12 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"])
     def download(self, request, pk=None):
+        """Serve the certificate PDF via Nginx X-Accel-Redirect (#74).
 
+        ``get_object()`` enforces ``IsCertificateOwner`` (staff or owner only),
+        then the bytes are delegated to Nginx's internal ``/protected/``
+        location instead of being exposed at a guessable public ``/media/`` URL.
+        """
         certificate = self.get_object()
 
         if not certificate.pdf_file:
@@ -44,18 +49,14 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        try:
-            return FileResponse(
-                certificate.pdf_file.open("rb"),
-                as_attachment=True,
-                filename=f"certificate_{certificate.certificate_code}.pdf",
-                content_type="application/pdf",
-            )
-        except FileNotFoundError:
-            return Response(
-                {"error": "Certificate file not found on storage"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        response = HttpResponse(status=200)
+        response["X-Accel-Redirect"] = f"/protected/{certificate.pdf_file.name}"
+        response["Content-Disposition"] = (
+            f'attachment; filename="certificate_{certificate.certificate_code}.pdf"'
+        )
+        # Defer the MIME type to Nginx's internal location (mime.types).
+        del response["Content-Type"]
+        return response
 
     @action(detail=True, methods=["post"], url_path="validate")
     def validate_ownership(self, request, pk=None):

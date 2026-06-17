@@ -16,6 +16,22 @@ from rest_framework import serializers
 from .models import Lesson, Video
 
 
+def _video_stream_url(obj, request):
+    """Build the URL of the enrollment-gated video file endpoint (#54).
+
+    Args:
+        obj (Video): The video instance being serialized.
+        request: The DRF request, if available in serializer context.
+
+    Returns:
+        str: Absolute URL when a request is in context, else a relative path.
+    """
+    path = f"/api/videos/{obj.pk}/file/"
+    if request is not None:
+        return request.build_absolute_uri(path)
+    return path
+
+
 class VideoSerializer(serializers.ModelSerializer):
     """
     Serializer for Video CRUD operations.
@@ -31,6 +47,7 @@ class VideoSerializer(serializers.ModelSerializer):
 
     file_size_mb = serializers.SerializerMethodField()
     duration_formatted = serializers.SerializerMethodField()
+    stream_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Video
@@ -43,6 +60,7 @@ class VideoSerializer(serializers.ModelSerializer):
             "file_size",
             "is_processed",
             "file_size_mb",
+            "stream_url",
             "created_at",
             "updated_at",
             "duration_formatted",
@@ -54,6 +72,20 @@ class VideoSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+        # file is accepted on upload but never returned as a public media URL;
+        # bytes are served only through the gated stream_url endpoint (#54/#55).
+        extra_kwargs = {"file": {"write_only": True}}
+
+    def get_stream_url(self, obj):
+        """Return the gated video stream endpoint URL (#54).
+
+        Args:
+            obj (Video): The video instance being serialized.
+
+        Returns:
+            str: Absolute (or relative) URL of the enrollment-gated file endpoint.
+        """
+        return _video_stream_url(obj, self.context.get("request"))
 
     def get_file_size_mb(self, obj):
         """
@@ -132,14 +164,19 @@ class VideoListSerializer(serializers.ModelSerializer):
         - title: Video title
         - duration_formatted: Human-readable duration (HH:MM:SS)
         - thumbnail: Preview image URL
-        - file: Video file URL (required by the frontend player)
+        - stream_url: Enrollment-gated file endpoint (never the raw media URL, #54)
     """
 
     duration_formatted = serializers.CharField(read_only=True)
+    stream_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Video
-        fields = ["id", "title", "duration_formatted", "thumbnail", "file"]
+        fields = ["id", "title", "duration_formatted", "thumbnail", "stream_url"]
+
+    def get_stream_url(self, obj):
+        """Return the gated video stream endpoint URL (#54)."""
+        return _video_stream_url(obj, self.context.get("request"))
 
 
 class LessonListSerializer(serializers.ModelSerializer):

@@ -123,9 +123,9 @@ class IsEnrolled(BasePermission):
     Permission class to restrict lesson/video access to enrolled users.
 
     Access is granted if:
-    1. User is the course instructor (bypass enrollment check)
+    1. Content is flagged is_free_preview (open to everyone, marketing)
     2. User is admin/staff (full access for moderation)
-    3. Lesson is first in course (order=1) - free preview
+    3. User is the course instructor (bypass enrollment check)
     4. User has active enrollment in the course
 
     Cache Strategy:
@@ -161,9 +161,11 @@ class IsEnrolled(BasePermission):
         if request.method not in SAFE_METHODS:
             return True
 
-        # First lesson is always free (preview/marketing)
-        # Check this BEFORE authentication to allow anonymous access
-        if hasattr(obj, "order") and obj.order == 1:
+        # Free-preview content is open to everyone (marketing). Derive this from
+        # the is_free_preview flag, never from lesson order (#56) — order==1 is
+        # forgeable and would leak every course's first lesson.
+        # Checked BEFORE authentication to allow anonymous preview access.
+        if self._is_free_preview(obj):
             return True
 
         # Now require authentication for non-free lessons
@@ -193,6 +195,29 @@ class IsEnrolled(BasePermission):
             self.message = f"Você precisa estar matriculado no curso '{course.title}' para acessar este conteúdo."
 
         return is_enrolled
+
+    def _is_free_preview(self, obj):
+        """
+        Return whether obj is a free-preview lesson/video (#56).
+
+        Derives the flag from the is_free_preview field, supporting both
+        Lesson objects (direct field) and Video objects (via lesson.is_free_preview).
+
+        Args:
+            obj: Lesson or Video instance
+
+        Returns:
+            bool: True if the content is flagged as a free preview
+        """
+        if hasattr(obj, "is_free_preview"):
+            return bool(obj.is_free_preview)
+
+        # Video reaches the flag through its one-to-one lesson
+        lesson = getattr(obj, "lesson", None)
+        if lesson is not None:
+            return bool(lesson.is_free_preview)
+
+        return False
 
     def _get_course_from_object(self, obj):
         """
