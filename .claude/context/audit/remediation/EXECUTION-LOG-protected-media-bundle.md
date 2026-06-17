@@ -64,12 +64,29 @@ adivinhável. Serializers ainda expunham `file` / `pdf_file` / `pdf_url` crus.
 
 ---
 
-## ⏳ Cycle 2 — certificados: PDF protegido (#74) — PENDENTE
-- `certificates/serializers.py`: parar de expor `pdf_file` e `pdf_url`.
-- `certificates/views.py`: action `download` → `X-Accel-Redirect` (hoje `FileResponse`).
-- `nginx.conf`: adicionar `location /media/certificates/ { internal; }` (o `/protected/` já existe
-  do Cycle 1).
-- Deny-test: certificado revogado/não-dono negado.
+## ✅ Cycle 2 — certificados: PDF protegido (#74) — CONCLUÍDO
+**Commit:** `f9977dd` — `fix(certificates): serve PDF via X-Accel-Redirect, drop public media URL`
+
+### Mudanças
+- `certificates/serializers.py` — remove `pdf_file` e `pdf_url`; adiciona `download_url` gated
+  (aponta para a action, `None` se sem PDF).
+- `certificates/views.py` — action `download`: `FileResponse` → `X-Accel-Redirect` para
+  `/protected/<pdf_file.name>` + `Content-Disposition: attachment`; mantém `IsCertificateOwner`.
+- `nginx.conf` (3 blocks) — `location /media/certificates/ { internal; }`.
+
+### TDD
+- RED: 4 falhas (serializer expondo `pdf_file`/`pdf_url`, sem `download_url`, download via
+  `FileResponse`); 2 já passavam (non-owner 404, anônimo 401).
+- GREEN: `apps/certificates/` **40 passed** · full suite **375 passed** (zero regressão).
+- Coverage: `views.py` 100% · `serializers.py` 95% · linters limpos.
+- code-reviewer: **APPROVE, sem Blocking.**
+
+### Done-criteria
+- [x] GET de PDF por anônimo/não-dono → 401/404
+- [x] Nenhum `/media/certificates/...` público
+- [x] Serializer não retorna URL de mídia fetchável
+- [ ] *(deferido)* path UUID desacoplado do `certificate_code`
+- [ ] *(deferido → #81)* download de certificado revogado negado (não é leak: dono = titular do PII)
 
 ## ⏳ Cycle 3 — proxy hardening (#48) — PENDENTE
 - Backlog detalhado: `.claude/context/backlog/2026-06-15-nginx-xff-num-proxies-48.md`.
