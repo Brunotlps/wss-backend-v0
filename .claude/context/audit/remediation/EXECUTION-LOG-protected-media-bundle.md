@@ -88,16 +88,45 @@ adivinhável. Serializers ainda expunham `file` / `pdf_file` / `pdf_url` crus.
 - [ ] *(deferido)* path UUID desacoplado do `certificate_code`
 - [ ] *(deferido → #81)* download de certificado revogado negado (não é leak: dono = titular do PII)
 
-## ⏳ Cycle 3 — proxy hardening (#48) — PENDENTE
-- Backlog detalhado: `.claude/context/backlog/2026-06-15-nginx-xff-num-proxies-48.md`.
-- Bloco `api` (:443): `set_real_ip_from <faixas CF>` + `real_ip_header CF-Connecting-IP` +
-  sobrescrever XFF; reconciliar `NUM_PROXIES` (2→1, validar bloco `upload`).
+## ✅ Cycle 3 — proxy hardening (#48) — CONCLUÍDO
+**Commit:** `ae0d9ca` — `fix(users): trust Cloudflare real IP and reconcile NUM_PROXIES`
+Backlog detalhado: `.claude/context/backlog/2026-06-15-nginx-xff-num-proxies-48.md`.
+
+### Mudanças
+- `config/settings/base.py` — `NUM_PROXIES` default 2 → 1.
+- `nginx.conf` (http) — faixas CF `set_real_ip_from` + `real_ip_header CF-Connecting-IP` +
+  `real_ip_recursive on`.
+- `nginx.conf` (6 locations) — `X-Forwarded-For` → `$remote_addr` (descarta XFF forjado).
+- `users/tests/test_throttling.py` — `TestProxyXForwardedForHandling` (NUM_PROXIES=1, anti-spoof,
+  caso 1-entry do upload).
+
+### TDD
+- RED: 2 falhas (`NUM_PROXIES==1`; com 2 o prefixo forjado em `addrs[-2]` viraria a chave).
+- GREEN: `TestProxyXForwardedForHandling` 3 passed · users **97 passed** · full suite **377 passed**.
+- code-reviewer: **APPROVE, sem Blocking** (threat model validado nos 3 caminhos).
+
+### Done-criteria
+- [x] Chave de throttle = IP real do cliente em todos os caminhos
+- [x] XFF forjado não burla o rate-limit
+- [x] `upload` (sem CF) não confia em `CF-Connecting-IP`
+
+---
+
+## 🚀 PRONTO PARA DEPLOY ÚNICO — bundle completo (Cycles 1+2+3)
+Commits no branch `fix/protected-media-and-proxy-hardening`: `ddd1787`, `f9977dd`, `ae0d9ca`
+(+ docs). Suíte completa **377 passed**. **Ainda não deployado / não pushed.**
 
 ---
 
 ## Deploy final (após Cycle 3) — checklist
+0. **`.env` do VPS:** remover a linha `NUM_PROXIES` (ou setar `=1`). Se ficar `=2`, o override do
+   env anula o default novo e o fix do #48 fica inerte. (Major do code-reviewer.)
 1. `nginx -t` no VPS (o teste local falha só por não resolver o upstream `wss_backend`).
-2. `docker compose up -d --force-recreate nginx` (bind mount por inode).
-3. Smoke: `GET /media/videos/<x>.mp4` direto → 404/403; `GET /api/videos/<id>/file/` matriculado
-   → 200 + arquivo; thumbnail público → 200; PDF de certificado só via download autenticado.
-4. Confirmar chave de throttle = IP real do cliente (CF-Connecting-IP).
+2. `docker compose up -d --force-recreate nginx` **e** o serviço backend (para recarregar settings).
+   Bind mount por inode → `--force-recreate` é obrigatório no nginx.
+3. Smoke:
+   - `GET /media/videos/<x>.mp4` e `GET /media/certificates/<code>.pdf` diretos → 404 (internal).
+   - `GET /api/videos/<id>/file/` matriculado → 200 + bytes; não-matriculado → 403.
+   - Download de certificado só via `/api/certificates/<id>/download/` autenticado (dono).
+   - Thumbnail (`/media/videos/thumbnails/...`) público → 200.
+4. Confirmar chave de throttle = IP real do cliente (ex.: `wss:1:throttle_register_<IP-público>`).
