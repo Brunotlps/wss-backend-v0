@@ -217,10 +217,12 @@ REST_FRAMEWORK = {
         'verify': '20/min',
         'health': '120/min',
     },
-    # Upstream proxies in front of the app (Cloudflare + Nginx). Without this,
-    # throttling keys every client to the proxy IP, throttling the whole site
-    # at once. See audit issue #48.
-    'NUM_PROXIES': env.int('NUM_PROXIES', default=2),
+    # Trusted proxy hops in front of the app. Nginx is configured with
+    # real_ip (CF-Connecting-IP) and overwrites X-Forwarded-For with the
+    # trusted $remote_addr, so exactly ONE trusted hop reaches Django. With
+    # NUM_PROXIES=1, DRF keys throttles on the real client IP and ignores any
+    # spoofed XFF prefix. See audit issue #48.
+    'NUM_PROXIES': env.int('NUM_PROXIES', default=1),
 }
 
 
