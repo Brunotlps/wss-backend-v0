@@ -177,6 +177,13 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Lifetime of signed video streaming URLs (see apps.videos.signing). Covers a
+# single viewing session; the token is a video-scoped bearer capability, so keep
+# it short. Tighten/extend via env as needed.
+VIDEO_STREAM_URL_TTL_SECONDS = env.int(
+    'VIDEO_STREAM_URL_TTL_SECONDS', default=2 * 60 * 60
+)
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
