@@ -86,6 +86,42 @@ class Certificate(TimeStampedModel):
         help_text=_("Timestamp of the last PDF generation failure"),
     )
 
+    # Denormalized snapshot, populated once at issue time and never rewritten,
+    # so an issued certificate is an immutable, durable legal document: editing
+    # or deleting the source course/user/enrollment does not change it (#77).
+    # The public properties below prefer the snapshot and fall back to the live
+    # lookup only when it is empty (legacy rows before backfill).
+    student_name_snapshot = models.CharField(
+        _("student name (snapshot)"),
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=_("Student full name captured when the certificate was issued"),
+    )
+
+    course_title_snapshot = models.CharField(
+        _("course title (snapshot)"),
+        max_length=200,
+        blank=True,
+        default="",
+        help_text=_("Course title captured when the certificate was issued"),
+    )
+
+    instructor_name_snapshot = models.CharField(
+        _("instructor name (snapshot)"),
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=_("Instructor name captured when the certificate was issued"),
+    )
+
+    completion_date_snapshot = models.DateTimeField(
+        _("completion date (snapshot)"),
+        null=True,
+        blank=True,
+        help_text=_("Completion date captured when the certificate was issued"),
+    )
+
     class Meta:
         verbose_name = _("certificate")
         verbose_name_plural = _("certificates")
@@ -101,17 +137,38 @@ class Certificate(TimeStampedModel):
 
     @property
     def student_name(self):
-        return self.enrollment.user.get_full_name() or self.enrollment.user.email
+        """Issued student name: stored snapshot, else live lookup (#77)."""
+        if self.student_name_snapshot:
+            return self.student_name_snapshot
+        if self.enrollment_id:
+            return self.enrollment.user.get_full_name() or self.enrollment.user.email
+        return ""
 
     @property
     def course_title(self):
-        return self.enrollment.course.title
+        """Issued course title: stored snapshot, else live lookup (#77)."""
+        if self.course_title_snapshot:
+            return self.course_title_snapshot
+        if self.enrollment_id:
+            return self.enrollment.course.title
+        return ""
 
     @property
     def instructor_name(self):
-        instructor = self.enrollment.course.instructor
-        return instructor.get_full_name() or instructor.email
+        """Issued instructor name: stored snapshot, else live lookup (#77)."""
+        if self.instructor_name_snapshot:
+            return self.instructor_name_snapshot
+        if self.enrollment_id:
+            instructor = self.enrollment.course.instructor
+            if instructor:
+                return instructor.get_full_name() or instructor.email
+        return ""
 
     @property
     def completion_date(self):
-        return self.enrollment.completed_at
+        """Issued completion date: stored snapshot, else live lookup (#77)."""
+        if self.completion_date_snapshot:
+            return self.completion_date_snapshot
+        if self.enrollment_id:
+            return self.enrollment.completed_at
+        return None
