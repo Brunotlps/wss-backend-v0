@@ -83,6 +83,28 @@ class TestCheckCourseCompletion:
         enrollment.refresh_from_db()
         assert not enrollment.completed
 
+    @patch("apps.certificates.tasks.generate_certificate_pdf")
+    def test_foreign_course_lesson_progress_not_counted(self, mock_pdf):
+        """Completed progress on a lesson from another course must not count
+        toward this enrollment's completion (#29 defensive count).
+
+        Even if such a record exists (e.g. created before the serializer
+        guard), the signal counts only progress on the enrollment's course.
+        """
+        mock_pdf.return_value = "certificates/test.pdf"
+        course = CourseFactory()
+        LessonFactory(course=course)  # one real lesson, never completed
+        enrollment = EnrollmentFactory(course=course)
+
+        foreign_lesson = LessonFactory()  # belongs to a different course
+        assert foreign_lesson.course_id != enrollment.course_id
+        progress = LessonProgressFactory(enrollment=enrollment, lesson=foreign_lesson)
+        progress.completed = True
+        progress.save()
+
+        enrollment.refresh_from_db()
+        assert not enrollment.completed
+
     def test_uncompleted_lesson_progress_save_does_nothing(self):
         """Saving a LessonProgress with completed=False never triggers completion."""
         course = CourseFactory()

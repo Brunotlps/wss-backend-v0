@@ -374,6 +374,11 @@ class LessonProgressSerializer(serializers.ModelSerializer):
                 {"enrollment": "You can only update your own progress."}
             )
 
+        if enrollment and lesson and lesson.course_id != enrollment.course_id:
+            raise serializers.ValidationError(
+                {"lesson": "Lesson does not belong to this enrollment's course."}
+            )
+
         if lesson:
             watched_duration = attrs.get(
                 "watched_duration",

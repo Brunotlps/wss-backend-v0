@@ -44,7 +44,12 @@ def check_course_completion(sender, instance, **kwargs):
     if total_lessons == 0:
         return
 
-    completed_count = enrollment.lesson_progress.filter(completed=True).count()
+    # Defense in depth: count only progress on lessons of THIS enrollment's
+    # course, so progress on foreign-course lessons can never complete it
+    # (the serializer guard is the primary fix — see #29).
+    completed_count = enrollment.lesson_progress.filter(
+        completed=True, lesson__course=enrollment.course
+    ).count()
 
     if completed_count >= total_lessons:
         logger.info(
