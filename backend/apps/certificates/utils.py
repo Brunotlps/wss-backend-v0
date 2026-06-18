@@ -35,7 +35,7 @@ Dependencies:
 """
 
 import os
-import random
+import secrets
 import string
 from datetime import datetime
 
@@ -368,30 +368,40 @@ def generate_certificate_pdf(certificate):
 
 def generate_certificate_code():
     """
-    Generate unique certificate validation code
+    Generate a unique certificate validation code.
 
-    Format: WSS-YYYY-XXXXXX
+    Format: WSS-YYYY-XXXXXXXXXXXX
     - WSS: Platform identifier
     - YYYY: Current year
-    - XXXXXX: 6 random alphanumeric characters (uppercase)
+    - XXXXXXXXXXXX: 12 cryptographically random alphanumeric chars (uppercase)
+
+    Uses ``secrets`` (CSPRNG) — not ``random`` — and 12 secret characters
+    (36^12 ≈ 4.7e18) so the public code cannot be enumerated/predicted (#75).
 
     Returns:
-        str: Unique certificate code (15 characters)
+        str: Unique certificate code (21 characters).
+
+    Raises:
+        RuntimeError: If a unique code cannot be allocated after several tries.
 
     Example:
         >>> code = generate_certificate_code()
-        >>> print(code)  # 'WSS-2026-A1B2C3'
+        >>> print(code)  # 'WSS-2026-A1B2C3D4E5F6'
     """
 
     from apps.certificates.models import Certificate
 
     PREFIX = "WSS"
     CHARS = string.ascii_uppercase + string.digits  # A-Z + 0-9
+    CODE_LENGTH = 12
+    MAX_ATTEMPTS = 5
     year = datetime.now().year
 
-    while True:
-        random_part = "".join(random.choices(CHARS, k=6))
+    for _ in range(MAX_ATTEMPTS):
+        random_part = "".join(secrets.choice(CHARS) for _ in range(CODE_LENGTH))
         code = f"{PREFIX}-{year}-{random_part}"
 
         if not Certificate.objects.filter(certificate_code=code).exists():
             return code
+
+    raise RuntimeError("Could not allocate a unique certificate code.")

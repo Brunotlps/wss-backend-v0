@@ -28,11 +28,15 @@ class TestCertificateModel:
         assert "Maria Silva" in str(cert)
 
     def test_certificate_code_format(self):
-        """Certificate code follows WSS-YYYY-XXXXXX format."""
+        """Certificate code is WSS-YYYY- plus 12 secret chars (#75).
+
+        At least 12 random alphanumeric characters of cryptographic entropy
+        (secrets), not the previous 6, to resist enumeration.
+        """
         import re
 
         cert = CertificateFactory()
-        assert re.match(r"WSS-\d{4}-[A-Z0-9]{6}$", cert.certificate_code)
+        assert re.match(r"WSS-\d{4}-[A-Z0-9]{12}$", cert.certificate_code)
 
     def test_certificate_code_is_unique(self):
         """Two certificates cannot share the same code."""
