@@ -45,7 +45,22 @@ def create_certificate_on_completion(sender, instance, created, **kwargs):
     # tracked separately by pdf_file, so a certificate is never reported as
     # "revoked" merely because its PDF has not been generated yet (#73).
     code = generate_certificate_code()
-    certificate = Certificate.objects.create(enrollment=instance, certificate_code=code)
+
+    # Capture a denormalized snapshot at issue time so the certificate is an
+    # immutable, durable document — later edits/deletes of the source
+    # course/user/enrollment never change it (#77).
+    user = instance.user
+    instructor = instance.course.instructor
+    certificate = Certificate.objects.create(
+        enrollment=instance,
+        certificate_code=code,
+        student_name_snapshot=user.get_full_name() or user.email,
+        course_title_snapshot=instance.course.title,
+        instructor_name_snapshot=(
+            (instructor.get_full_name() or instructor.email) if instructor else ""
+        ),
+        completion_date_snapshot=instance.completed_at,
+    )
 
     logger.info(
         "Certificate %s created for enrollment %d — queuing PDF generation.",

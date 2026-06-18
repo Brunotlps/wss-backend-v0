@@ -8,7 +8,69 @@ import pytest
 
 from apps.certificates.factories import CertificateFactory
 from apps.certificates.models import Certificate
+from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory
+from apps.users.factories import InstructorFactory, UserFactory
+
+
+@pytest.mark.django_db
+class TestCertificateSnapshot:
+    """Snapshot denormalization & immutability of issued certificates (#77)."""
+
+    def _issue(self, user, course):
+        """Complete an enrollment so the signal issues a certificate."""
+        enrollment = EnrollmentFactory(user=user, course=course)
+        with patch("apps.certificates.tasks.generate_certificate_pdf") as mock_pdf:
+            mock_pdf.return_value = "certificates/2026/01/x.pdf"
+            enrollment.completed = True
+            enrollment.completed_at = timezone.now()
+            enrollment.save()
+        return Certificate.objects.get(enrollment=enrollment)
+
+    def test_signal_populates_snapshot_at_issue(self):
+        """The signal stores a denormalized snapshot at issue time (#77)."""
+        instructor = InstructorFactory(first_name="Ana", last_name="Lima")
+        course = CourseFactory(title="Original Title", instructor=instructor)
+        user = UserFactory(first_name="Bruno", last_name="Teix")
+
+        cert = self._issue(user, course)
+
+        assert cert.student_name_snapshot == "Bruno Teix"
+        assert cert.course_title_snapshot == "Original Title"
+        assert cert.instructor_name_snapshot == "Ana Lima"
+        assert cert.completion_date_snapshot is not None
+
+    def test_issued_certificate_is_immutable(self):
+        """Renaming the course/user does not rewrite an issued certificate (#77).
+
+        The public properties must read the stored snapshot, so editing the
+        source course or user never retroactively changes the legal document.
+        """
+        instructor = InstructorFactory(first_name="Ana", last_name="Lima")
+        course = CourseFactory(title="Original Title", instructor=instructor)
+        user = UserFactory(first_name="Bruno", last_name="Teix")
+
+        cert = self._issue(user, course)
+
+        course.title = "Renamed Title"
+        course.save()
+        user.first_name = "Changed"
+        user.save()
+        cert.refresh_from_db()
+
+        assert cert.course_title == "Original Title"
+        assert cert.student_name == "Bruno Teix"
+
+    def test_property_falls_back_to_live_lookup_when_snapshot_empty(self):
+        """Legacy/unsnapshotted rows fall back to the live lookup (#77)."""
+        user = UserFactory(first_name="Legacy", last_name="User")
+        course = CourseFactory(title="Legacy Course")
+        enrollment = EnrollmentFactory(user=user, course=course)
+        # CertificateFactory bypasses the signal → no snapshot populated.
+        cert = CertificateFactory(enrollment=enrollment)
+
+        assert cert.student_name == "Legacy User"
+        assert cert.course_title == "Legacy Course"
 
 
 @pytest.mark.django_db
