@@ -14,7 +14,7 @@ import logging
 from django.conf import settings
 from django.shortcuts import redirect
 
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -248,14 +248,21 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
 
-class ProfileViewSet(viewsets.ModelViewSet):
+class ProfileViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
     """
-    ViewSet for complete profile management.
+    ViewSet for user profile read and update.
 
-    Provides CRUD endpoints for user profiles with:
-    - Paginated and filterable listing
-    - Complete details with related user information
-    - Updates with validations
+    Profiles are created automatically by signal on user creation and are
+    1:1 with the user, so create and destroy are intentionally **not**
+    exposed (POST/DELETE → 405). Provides:
+    - Paginated listing (scoped to the owner; staff see all)
+    - Retrieve with related user information
+    - Update of the owner's own profile
     - Optimized queries with select_related
 
     Permissions:

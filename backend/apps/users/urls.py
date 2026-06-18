@@ -20,11 +20,9 @@ Routes:
     PATCH  /api/users/{pk}/               → UserViewSet.partial_update
     DELETE /api/users/{pk}/               → UserViewSet.destroy
     GET    /api/profiles/                 → ProfileViewSet.list
-    POST   /api/profiles/                 → ProfileViewSet.create
     GET    /api/profiles/{pk}/            → ProfileViewSet.retrieve
     PUT    /api/profiles/{pk}/            → ProfileViewSet.update
     PATCH  /api/profiles/{pk}/            → ProfileViewSet.partial_update
-    DELETE /api/profiles/{pk}/            → ProfileViewSet.destroy
 """
 
 from django.urls import include, path
