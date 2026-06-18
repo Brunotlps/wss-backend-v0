@@ -144,7 +144,7 @@ class CurrentUserView(APIView):
 
         Args:
             request: HTTP request object containing user update data.
-                Allowed fields: first_name, last_name, phone, is_instructor.
+                Allowed fields: first_name, last_name, phone.
 
         Returns:
             Response: JSON response with one of the following:

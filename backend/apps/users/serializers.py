@@ -44,7 +44,6 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "phone",
-            "is_instructor",
         ]
         extra_kwargs = {
             "email": {"required": True},
@@ -121,19 +120,16 @@ class UserDetailSerializer(serializers.ModelSerializer):
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating user informations."""
+    """Serializer for updating user informations.
+
+    ``is_instructor`` is intentionally excluded: instructor status is an
+    administrative action and must not be self-assignable via the API
+    (privilege escalation — see security.md, Prevent Mass Assignment).
+    """
 
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "phone", "is_instructor"]
-
-    def validate_is_instructor(self, value):
-
-        if not value and self.instance.is_instructor:
-            raise serializers.ValidationError(
-                "Cannot demote from instructor status. Contact admin."
-            )
-        return value
+        fields = ["first_name", "last_name", "phone"]
 
 
 class UserListSerializer(serializers.ModelSerializer):
