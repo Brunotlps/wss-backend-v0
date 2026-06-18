@@ -262,3 +262,24 @@ class TestLessonProgressViewSet:
         other_progress = LessonProgressFactory()
         response = auth_client.get(f"{self.URL}{other_progress.pk}/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_progress_on_foreign_course_lesson_returns_400(self, auth_client):
+        """Progress for a lesson outside the enrollment's course is rejected (#29).
+
+        Otherwise a student could complete a course (and trigger a
+        certificate) using progress on lessons they never had to watch.
+        """
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        LessonFactory(course=enrollment.course)  # real lesson in the course
+        foreign_lesson = LessonFactory()  # belongs to a different course
+        assert foreign_lesson.course_id != enrollment.course_id
+        response = auth_client.post(
+            self.URL,
+            {
+                "enrollment_id": enrollment.pk,
+                "lesson_id": foreign_lesson.pk,
+                "completed": True,
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
