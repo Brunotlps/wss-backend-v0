@@ -1,6 +1,9 @@
 """Tests for Enrollment and LessonProgress API views."""
 
+from unittest.mock import patch
+
 from django.core.cache import cache
+from django.db import IntegrityError
 
 from rest_framework import status
 
@@ -9,6 +12,7 @@ import pytest
 from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory, LessonProgressFactory
 from apps.enrollments.models import Enrollment
+from apps.enrollments.views import EnrollmentViewSet
 from apps.payments.factories import PaymentFactory
 from apps.payments.models import Payment
 from apps.videos.factories import LessonFactory
@@ -124,11 +128,53 @@ class TestEnrollmentViewSet:
         assert response.status_code == status.HTTP_200_OK
 
     def test_cannot_enroll_twice_in_same_course(self, auth_client):
-        """Cannot create duplicate enrollment for the same course."""
-        course = CourseFactory()
+        """Duplicate enrollment POST returns 409 Conflict, not 500/400 (#28).
+
+        Uses the real write field ``course_id``; a second POST must be
+        rejected as a business-rule conflict, not raise an IntegrityError.
+        """
+        course = CourseFactory(free=True)
         EnrollmentFactory(user=auth_client.user, course=course)
-        response = auth_client.post(self.URL, {"course": course.pk})
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        response = auth_client.post(self.URL, {"course_id": course.pk})
+        assert response.status_code == status.HTTP_409_CONFLICT
+
+    def test_duplicate_enrollment_race_returns_409(self, auth_client):
+        """TOCTOU: a create slipping past the pre-check hits the unique
+        constraint; the IntegrityError is mapped to 409, not 500 (#28)."""
+        course = CourseFactory(free=True)
+        with patch.object(
+            EnrollmentViewSet,
+            "perform_create",
+            side_effect=IntegrityError("UNIQUE constraint failed"),
+        ):
+            response = auth_client.post(self.URL, {"course_id": course.pk})
+        assert response.status_code == status.HTTP_409_CONFLICT
+
+    def test_create_ignores_system_managed_fields(self, auth_client):
+        """System-managed fields cannot be set on enrollment creation (#30).
+
+        Mass-assignment: a POST must not let the client mark an enrollment
+        as completed/rated/reviewed/inactive — those bypass the update
+        serializer's business rules and open a fraudulent-certificate path.
+        """
+        course = CourseFactory(free=True)
+        response = auth_client.post(
+            self.URL,
+            {
+                "course_id": course.pk,
+                "completed": True,
+                "rating": 5,
+                "review": "fake",
+                "is_active": False,
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+        enrollment = Enrollment.objects.get(pk=response.data["id"])
+        assert enrollment.completed is False
+        assert enrollment.rating is None
+        assert enrollment.review == ""
+        assert enrollment.is_active is True
 
     def test_search_enrollments_by_course_title(self, auth_client):
         """Enrollments can be searched by course title."""

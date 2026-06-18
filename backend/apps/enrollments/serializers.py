@@ -221,6 +221,42 @@ class EnrollmentDetailSerializer(serializers.ModelSerializer):
         return None
 
 
+class EnrollmentCreateSerializer(serializers.ModelSerializer):
+    """
+    Enrollment creation serializer — only ``course_id`` is client-settable.
+
+    System-managed fields (completed, completed_at, certificate_issued,
+    rating, review, is_active) are NOT writable on creation: they take their
+    model defaults and can only change through the update serializer's
+    audited business rules. This prevents mass-assignment of a self-rated,
+    already-"completed" enrollment, which would bypass those rules and open a
+    fraudulent-certificate path. Ref: security.md (Prevent Mass Assignment).
+
+    Used in:
+        - POST /api/enrollments/ (create enrollment)
+    """
+
+    # For writing: accept course ID
+    course_id = serializers.PrimaryKeyRelatedField(
+        queryset=Course.objects.all(), source="course", write_only=True
+    )
+
+    # For reading: return nested course object
+    course = CourseListSerializer(read_only=True)
+
+    class Meta:
+        model = Enrollment
+        fields = [
+            "id",
+            "course_id",
+            "course",
+            "enrolled_at",
+            "is_active",
+            "completed",
+        ]
+        read_only_fields = ["id", "enrolled_at", "is_active", "completed"]
+
+
 class LessonProgressSerializer(serializers.ModelSerializer):
     """
     Serializer for creating and updating lesson progress.
