@@ -41,10 +41,11 @@ def create_certificate_on_completion(sender, instance, created, **kwargs):
         logger.debug("Certificate already exists for enrollment %d.", instance.id)
         return
 
+    # is_valid is left at its default (True = not revoked). PDF readiness is
+    # tracked separately by pdf_file, so a certificate is never reported as
+    # "revoked" merely because its PDF has not been generated yet (#73).
     code = generate_certificate_code()
-    certificate = Certificate.objects.create(
-        enrollment=instance, certificate_code=code, is_valid=False
-    )
+    certificate = Certificate.objects.create(enrollment=instance, certificate_code=code)
 
     logger.info(
         "Certificate %s created for enrollment %d — queuing PDF generation.",

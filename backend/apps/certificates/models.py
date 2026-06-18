@@ -53,10 +53,10 @@ class Certificate(TimeStampedModel):
 
     certificate_code = models.CharField(
         _("certificate code"),
-        max_length=15,
+        max_length=24,
         unique=True,
         db_index=True,
-        help_text=_("Unique validation code (format: WSS-YYYY-XXXXXX)"),
+        help_text=_("Unique validation code (format: WSS-YYYY-XXXXXXXXXXXX)"),
     )
 
     issued_at = models.DateTimeField(

@@ -37,9 +37,12 @@ def generate_certificate_pdf_async(self, certificate_id: int) -> None:
         )
         return
 
-    if certificate.is_valid:
+    # Idempotency guard keyed on PDF presence, NOT is_valid (which means
+    # revocation only). This prevents a re-run from regenerating the PDF and
+    # silently un-revoking a revoked certificate (#73).
+    if certificate.pdf_file:
         logger.debug(
-            "Certificate %d already has a valid PDF — skipping.", certificate_id
+            "Certificate %d already has a PDF — skipping generation.", certificate_id
         )
         return
 
@@ -52,8 +55,9 @@ def generate_certificate_pdf_async(self, certificate_id: int) -> None:
     try:
         pdf_path = generate_certificate_pdf(certificate)
         certificate.pdf_file = pdf_path
-        certificate.is_valid = True
-        certificate.save(update_fields=["pdf_file", "is_valid"])
+        # Do NOT touch is_valid here — it is the revocation flag, independent
+        # of PDF generation (#73).
+        certificate.save(update_fields=["pdf_file"])
         logger.info("PDF generated successfully for certificate %d.", certificate_id)
     except Exception as exc:
         logger.error(
