@@ -21,6 +21,7 @@ Integration:
     - Integrates with authentication system to enforce user-based data isolation and role-specific queryset filtering.
 """
 
+from django.db import IntegrityError
 from django.db.models import Q
 
 from rest_framework import status, viewsets
@@ -34,6 +35,7 @@ from .filters import EnrollmentFilter, LessonProgressFilter
 from .models import Enrollment, LessonProgress
 from .permissions import IsEnrolledOrInstructor, IsEnrollmentOwner
 from .serializers import (
+    EnrollmentCreateSerializer,
     EnrollmentDetailSerializer,
     EnrollmentListSerializer,
     EnrollmentUpdateSerializer,
@@ -58,7 +60,8 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     - Auto-populates the requesting user as the enrollment owner on creation
 
     Integration Points:
-    - Serializers: Uses EnrollmentListSerializer for list views and EnrollmentDetailSerializer for detail operations
+    - Serializers: EnrollmentListSerializer (list), EnrollmentCreateSerializer (create),
+      EnrollmentUpdateSerializer (update), EnrollmentDetailSerializer (retrieve/default)
     - Permissions: Enforces IsAuthenticated and IsEnrollmentOwner to control access
     - Filters: Implements EnrollmentFilter for advanced filtering by course, status, and date ranges
     - Database: Optimizes queries using select_related() for user and course data, and prefetch_related() for lesson progress
@@ -89,6 +92,8 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "list":
             return EnrollmentListSerializer
+        if self.action == "create":
+            return EnrollmentCreateSerializer
         if self.action in ["update", "partial_update"]:
             return EnrollmentUpdateSerializer
         return EnrollmentDetailSerializer
@@ -107,15 +112,23 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
         return queryset.filter(user=user)
 
     def create(self, request, *args, **kwargs):
-        """Create enrollment, enforcing payment for paid courses.
+        """Create enrollment, enforcing uniqueness and payment.
 
-        Returns HTTP 402 if the course has a price and the requesting
-        user does not have a succeeded payment for it.
+        Returns HTTP 409 if the user is already enrolled in the course, or
+        HTTP 402 if the course has a price and the requesting user does not
+        have a succeeded payment for it. The ``IntegrityError`` catch closes
+        the check-then-create race (TOCTOU) against the unique constraint.
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         course = serializer.validated_data["course"]
+
+        if Enrollment.objects.filter(user=request.user, course=course).exists():
+            return Response(
+                {"detail": "Already enrolled in this course."},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         if course.price > 0:
             from apps.payments.models import Payment
@@ -132,7 +145,13 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_402_PAYMENT_REQUIRED,
                 )
 
-        self.perform_create(serializer)
+        try:
+            self.perform_create(serializer)
+        except IntegrityError:
+            return Response(
+                {"detail": "Already enrolled in this course."},
+                status=status.HTTP_409_CONFLICT,
+            )
         headers = self.get_success_headers(serializer.data)
         return Response(
             serializer.data,
