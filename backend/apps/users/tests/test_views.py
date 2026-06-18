@@ -256,3 +256,26 @@ class TestProfileViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] == 1
         assert response.data["results"][0]["bio"] == "this-is-mine"
+
+    def test_create_profile_not_allowed(self, auth_client):
+        """POST /api/profiles/ is not exposed (#42).
+
+        Profiles are created by signal on user creation. The create endpoint
+        had no owner wiring and raised a 500 IntegrityError; it must not exist.
+        """
+        response = auth_client.post(self.LIST_URL, {"bio": "x"})
+        assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+
+    def test_destroy_profile_not_allowed(self, auth_client):
+        """DELETE /api/profiles/{pk}/ is not exposed — profile is 1:1 with user."""
+        own = auth_client.user.profile
+        response = auth_client.delete(f"{self.LIST_URL}{own.pk}/")
+        assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+
+    def test_update_own_profile_allowed(self, auth_client):
+        """PATCH /api/profiles/{pk}/ updates the owner's profile."""
+        own = auth_client.user.profile
+        response = auth_client.patch(f"{self.LIST_URL}{own.pk}/", {"bio": "updated"})
+        assert response.status_code == status.HTTP_200_OK
+        own.refresh_from_db()
+        assert own.bio == "updated"
