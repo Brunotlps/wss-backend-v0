@@ -1,10 +1,12 @@
 """Tests for StripeService business logic."""
 
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from apps.courses.factories import CourseFactory
+from apps.enrollments.models import Enrollment
 from apps.payments.factories import PaymentFactory
 from apps.payments.models import Payment
 from apps.payments.services import StripeService
@@ -69,6 +71,24 @@ class TestStripeServiceCreatePaymentIntent:
         assert str(user.id) == str(metadata["user_id"])
         assert str(course.id) == str(metadata["course_id"])
         assert user.email == metadata["user_email"]
+
+    @patch("apps.payments.services.stripe.PaymentIntent.create")
+    def test_uses_deterministic_idempotency_key(self, mock_create):
+        """A deterministic idempotency_key is passed so a retry / second tab
+        reuses the same intent instead of creating a second live one (#12)."""
+        mock_create.return_value = MagicMock(
+            id="pi_idem",
+            client_secret="secret",
+            amount=10000,
+            currency="brl",
+        )
+        user = UserFactory()
+        course = CourseFactory(price=100.00)
+
+        StripeService.create_payment_intent(user, course)
+
+        call_kwargs = mock_create.call_args[1]
+        assert call_kwargs["idempotency_key"] == f"pi:{user.id}:{course.id}"
 
     @patch("apps.payments.services.stripe.PaymentIntent.create")
     def test_raises_stripe_error_on_api_failure(self, mock_create):
@@ -151,6 +171,29 @@ class TestStripeServiceHandlePaymentSuccess:
 
         with pytest.raises(ValueError, match="already processed"):
             StripeService.handle_payment_success(event_data)
+
+    def test_second_succeeded_for_enrolled_user_logs_error(self, caplog):
+        """A second succeeded intent (different pi_id) for an already-enrolled
+        user is a duplicate charge: logged at ERROR for ops to refund, with
+        the enrollment not duplicated and the new Payment still recorded (#12).
+        """
+        user = UserFactory()
+        course = CourseFactory(price=100.00)
+
+        first = self._make_event_data(user, course, pi_id="pi_first")
+        StripeService.handle_payment_success(first)
+
+        second = self._make_event_data(user, course, pi_id="pi_second")
+        with caplog.at_level(logging.ERROR, logger="apps.payments.services"):
+            StripeService.handle_payment_success(second)
+
+        assert Enrollment.objects.filter(user=user, course=course).count() == 1
+        assert Payment.objects.filter(stripe_payment_intent_id="pi_second").exists()
+        assert any("Duplicate charge" in r.getMessage() for r in caplog.records)
+        # The original enrollment's payment link is the audit-trail invariant:
+        # it must still point at the first intent, never silently repointed.
+        enrollment = Enrollment.objects.get(user=user, course=course)
+        assert enrollment.payment.stripe_payment_intent_id == "pi_first"
 
     def test_payment_and_enrollment_are_atomic(self):
         """If enrollment creation fails, payment is also rolled back."""

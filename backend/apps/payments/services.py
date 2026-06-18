@@ -77,6 +77,10 @@ class StripeService:
                     "enabled": True,
                     "allow_redirects": "never",
                 },
+                # Deterministic key: repeated calls for the same user+course
+                # (second tab, frontend retry) return the SAME intent instead
+                # of a second live one, preventing a double charge (#12).
+                idempotency_key=f"pi:{user.id}:{course.id}",
             )
 
             logger.info(
@@ -187,6 +191,24 @@ class StripeService:
         if not created and enrollment.payment is None:
             enrollment.payment = payment
             enrollment.save(update_fields=["payment"])
+        elif not created:
+            # Already enrolled WITH a linked payment, yet a second succeeded
+            # intent (different pi_id) arrived → a genuine duplicate charge.
+            # The new Payment is kept as an audit trail for the refund; log
+            # a loud, alertable ERROR so ops can refund it (#12). Automatic
+            # refund is intentionally deferred (product decision).
+            logger.error(
+                "Duplicate charge detected: user %s already enrolled in "
+                "course %s (enrollment %s, original payment %s); second "
+                "payment %s (intent %s) requires a refund.",
+                user.id,
+                course.id,
+                enrollment.id,
+                enrollment.payment_id,
+                payment.id,
+                payment_intent_id,
+            )
+            return enrollment
 
         logger.info(
             "Enrollment %s %s after payment %s",
