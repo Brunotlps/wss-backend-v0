@@ -71,6 +71,18 @@ class TestUserRegistrationSerializer:
         assert not serializer.is_valid()
         assert "email" in serializer.errors
 
+    def test_is_instructor_ignored_on_registration(self):
+        """is_instructor cannot be self-assigned at registration (#39).
+
+        Privilege escalation: an anonymous visitor must not be able to
+        register as an instructor. The flag is ignored and defaults False.
+        """
+        payload = self._valid_payload(is_instructor=True)
+        serializer = UserRegistrationSerializer(data=payload)
+        assert serializer.is_valid(), serializer.errors
+        user = serializer.save()
+        assert user.is_instructor is False
+
 
 @pytest.mark.django_db
 class TestUserUpdateSerializer:
@@ -88,13 +100,35 @@ class TestUserUpdateSerializer:
         updated = serializer.save()
         assert updated.first_name == "New"
 
-    def test_cannot_demote_instructor(self):
-        """Cannot set is_instructor=False once True."""
+    def test_cannot_self_promote_to_instructor(self):
+        """A regular user cannot self-promote via PATCH is_instructor (#40).
+
+        Privilege escalation: the flag is read-only on update, so the
+        input is ignored and the user stays a non-instructor.
+        """
+        user = UserFactory()
+        assert user.is_instructor is False
+        serializer = UserUpdateSerializer(
+            user,
+            data={"is_instructor": True},
+            partial=True,
+        )
+        assert serializer.is_valid(), serializer.errors
+        updated = serializer.save()
+        assert updated.is_instructor is False
+
+    def test_is_instructor_ignored_on_update(self):
+        """is_instructor is read-only on update — demotion attempt ignored.
+
+        Instructor status changes are an administrative action; a PATCH
+        with is_instructor=False is silently ignored, not applied.
+        """
         instructor = InstructorFactory()
         serializer = UserUpdateSerializer(
             instructor,
             data={"is_instructor": False},
             partial=True,
         )
-        assert not serializer.is_valid()
-        assert "is_instructor" in serializer.errors
+        assert serializer.is_valid(), serializer.errors
+        updated = serializer.save()
+        assert updated.is_instructor is True

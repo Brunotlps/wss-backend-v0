@@ -156,12 +156,17 @@ class TestCurrentUserView:
         response = auth_client.get(self.URL)
         assert "profile" in response.data
 
-    def test_patch_me_invalid_data_returns_400(self, auth_client):
-        """PATCH with invalid data (demoting instructor) returns 400."""
-        auth_client.user.is_instructor = True
-        auth_client.user.save()
-        response = auth_client.patch(self.URL, {"is_instructor": False})
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+    def test_patch_me_cannot_self_promote_to_instructor(self, auth_client):
+        """PATCH /me/ cannot self-assign is_instructor (#40).
+
+        Privilege escalation: the flag is read-only on update, so the
+        request succeeds but the flag is ignored, not applied.
+        """
+        assert auth_client.user.is_instructor is False
+        response = auth_client.patch(self.URL, {"is_instructor": True})
+        assert response.status_code == status.HTTP_200_OK
+        auth_client.user.refresh_from_db()
+        assert auth_client.user.is_instructor is False
 
 
 @pytest.mark.django_db
