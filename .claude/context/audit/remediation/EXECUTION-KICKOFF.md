@@ -4,6 +4,16 @@ Hand-off prompt for a **fresh** Claude Code session driving the audit remediatio
 prior conversation history and points to ground-truth files instead of restating them. Paste the
 block below as the first message of a new session.
 
+> **Status (2026-06-19):** Phase 0 + Phase 1 (all **16 Blocking**) are done, merged, and
+> **deployed to prod** (PRs #102–#109). Remaining audit work = Phase 2 (Major) + Phase 3 (hardening).
+> **Before Phase 2**, fix production bug **#110** (milestone #2 "Production Stabilization", NOT an
+> audit finding): the Celery worker never runs in prod (`entrypoint.sh` ignores the container
+> `command` → `celery`/`celery-beat` run gunicorn), so certificate PDFs are stuck and all async
+> tasks are dead. Companion prod bugs: **#111** (video duration 0:00), **#112** (video playback
+> Range). #110 is infra (`entrypoint.sh`/`docker-compose.yml`) + deploy + reprocess stuck certs —
+> not a plain `/fix-issue` slice. See `2026-06-audit-executive-summary.md` (status section),
+> `00-plan.md`, and memory `infra_celery_entrypoint_bug`.
+
 ---
 
 ## Full kickoff (cold start)
