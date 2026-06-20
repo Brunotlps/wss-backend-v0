@@ -99,7 +99,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: wss_staging_celery
-    command: celery -A config worker -l info
+    # Bypass the web entrypoint.sh so the Celery worker actually runs (#110).
+    entrypoint: ["celery"]
+    command: ["-A", "config", "worker", "--loglevel=info"]
     volumes:
       - ./backend:/app
       - staging_media_volume:/app/media

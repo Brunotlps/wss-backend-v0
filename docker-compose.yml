@@ -111,7 +111,11 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: wss_celery
-    command: celery -A config worker -l info
+    # Bypass the web entrypoint.sh (it runs migrate/collectstatic then gunicorn
+    # and IGNORES this command), so the Celery worker actually runs and async
+    # tasks (certificate PDF generation, etc.) are consumed (#110).
+    entrypoint: ["celery"]
+    command: ["-A", "config", "worker", "--loglevel=info"]
     volumes:
       - ./backend:/app
       - media_volume:/app/media
@@ -142,7 +146,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: wss_celery_beat
-    command: celery -A config beat -l info
+    # Same as the worker: bypass the web entrypoint so beat runs directly (#110).
+    entrypoint: ["celery"]
+    command: ["-A", "config", "beat", "--loglevel=info"]
     volumes:
       - ./backend:/app
     env_file:
