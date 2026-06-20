@@ -4,6 +4,14 @@
 #13, #14, #16, #18, #27, #23, #43, #44, #47, #78, #79, #80.
 **Themes:** `transactional-integrity`, `certificate-trust`.
 
+> ⚠️ **PROD REALITY (2026-06-19): the Celery worker is NOT running in production (#110).**
+> `entrypoint.sh` ignores the container `command`, so the `celery`/`celery-beat` services run
+> gunicorn — `.delay()` enqueues to Redis but **nothing consumes it**. Any task here (certificate
+> PDF generation, future video `duration` extraction #111) silently never executes in prod, while
+> tests pass (`CELERY_TASK_ALWAYS_EAGER=True` in development). **Fix #110 first**, then verify the
+> worker logs `celery@… ready` and consumes a task before trusting any `.delay()` path. See memory
+> `infra_celery_entrypoint_bug`.
+
 ## Canonical patterns (`.claude/rules/django-patterns.md`, `security.md`, `testing.md`)
 
 - Signals stay lightweight; heavy work → Celery. Tasks fetch by **id**, are **idempotent**,

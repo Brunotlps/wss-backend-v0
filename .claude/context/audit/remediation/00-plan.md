@@ -51,6 +51,22 @@ Phase 3 — Hardening & hygiene
 4. **Create-serializer / mass-assignment pattern** (#30/#39/#40) — same fix shape across apps.
 5. **Idempotent webhook/task writes** (`get_or_create` + `IntegrityError`) — #12/#28/#79.
 
+## Status & interleaved production bugs (updated 2026-06-19)
+
+- **Phase 0 + Phase 1 (all 16 Blocking): done, merged, deployed to prod 2026-06-18** (PRs #102–#109).
+- **Production-discovered bugs (milestone #2 "Production Stabilization", NOT in the 81 audit
+  findings)** — found via manual testing after the deploy:
+  - **#110** (Blocking, `app:infra`) — Celery worker never runs (`entrypoint.sh` ignores the
+    container `command`; the `celery`/`celery-beat` services run gunicorn). Async tasks (cert PDF,
+    any video processing) are never consumed. **Do this BEFORE Phase 2.** Not a `/fix-issue`-shaped
+    code slice — it's infra (`entrypoint.sh`/`docker-compose.yml`) + a deploy + reprocessing stuck
+    certs. See memory `infra_celery_entrypoint_bug` and the executive summary.
+  - **#111** (Major, `app:videos`) — `Video.duration` never extracted (player shows 0:00); folds
+    into Phase 2 (may depend on #110 if extraction is async).
+  - **#112** (Major, `app:videos`) — intermittent playback / Range over the signed X-Accel stream;
+    folds into Phase 2.
+- **Revised order:** **#110 → Phase 2 (Major)** with #111/#112 interleaved by app/layer.
+
 ## Working agreement (per project rules)
 
 - TDD: write the failing deny-test/regression test first (RED → GREEN → REFACTOR).

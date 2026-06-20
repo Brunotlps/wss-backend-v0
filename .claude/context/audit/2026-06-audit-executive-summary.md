@@ -116,3 +116,31 @@ the API-layer permission checks protect only JSON metadata, not the files.
 - **Board view:** filter `is:issue is:open label:severity:blocking` and group by `theme:*`.
 - **Product decisions recorded in issues:** price soft-freeze + audited `adjust-price` (#69);
   certificate snapshot/immutability split from on_delete (#77/#38).
+
+---
+
+## Status & production-discovered bugs (updated 2026-06-19)
+
+**Phase 1 — Blocking: 16/16 done, merged, and deployed to production on 2026-06-18** (PRs
+#102–#109, including the #73 `is_valid` backfill follow-up). Migrations `certificates 0003/0004/0005`
+applied; deploy validated. Per-slice notes in `.claude/context/backlog/2026-06-18-*.md`; deploy
+runbook in `remediation/DEPLOY-blocking-batch-2026-06-18.md`.
+
+**Production-discovered bugs (NOT part of the 81 audit findings).** Manual end-to-end testing after
+the deploy surfaced operational/feature bugs outside the audit scope. They are tracked **separately**
+in milestone **#2 "Production Stabilization"** (the audit milestone #1 stays the clean 16/16):
+
+- **#110** — `bug(infra): celery & celery-beat run gunicorn instead of the worker` (**Blocking**,
+  `app:infra`). `entrypoint.sh` hardcodes `exec gunicorn` with no `exec "$@"`, so the Celery
+  `command:` is ignored → **no worker ever runs**; async tasks (certificate PDF generation, etc.)
+  are enqueued to Redis and never consumed → certificates stuck "PDF em processamento". Pre-existing
+  infra bug, surfaced by the full prod flow; **not** a regression of the audit fixes. Reprocessing
+  the stuck certificates is in its acceptance criteria. **Priority: fix before resuming Phase 2.**
+- **#111** — `bug(videos): video duration never extracted — 0:00` (Major, `app:videos`). No
+  `ffprobe`/`ffmpeg` extraction exists; `duration` stays null. May depend on #110 if async.
+- **#112** — `bug(videos): intermittent playback — Range/seek over signed X-Accel stream` (Major,
+  `app:videos`). Traces to the protected-media/signed-URL delivery (PR #99/#101), not the Blocking
+  batch; needs Nginx `/protected/` Range + signed-URL lifecycle investigation.
+
+**Revised sequencing:** #110 (prod incident) → then Phase 2 (Major), with #111/#112 folded into the
+Phase-2 work. See `remediation/00-plan.md`.
