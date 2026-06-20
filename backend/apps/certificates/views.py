@@ -1,4 +1,4 @@
-from django.http import HttpResponse
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 
 from rest_framework import permissions, status, viewsets
@@ -35,11 +35,17 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"])
     def download(self, request, pk=None):
-        """Serve the certificate PDF via Nginx X-Accel-Redirect (#74).
+        """Serve the certificate PDF directly from Django (#74, #116).
 
-        ``get_object()`` enforces ``IsCertificateOwner`` (staff or owner only),
-        then the bytes are delegated to Nginx's internal ``/protected/``
-        location instead of being exposed at a guessable public ``/media/`` URL.
+        ``get_object()`` enforces ``IsCertificateOwner`` (staff or owner only).
+        The PDF is streamed with a ``FileResponse`` rather than an Nginx
+        ``X-Accel-Redirect`` so the CORS header added by ``corsheaders`` on the
+        Django response actually reaches the browser — Nginx drops it when it
+        serves a file from an internal location, breaking the frontend's
+        authenticated XHR download (#116). Certificates are tiny (~5KB), so the
+        Nginx offload is unnecessary, and the ``/media/certificates/`` location
+        stays ``internal`` (defense-in-depth, #74): the PDF is never exposed at
+        a guessable public ``/media/`` URL.
         """
         certificate = self.get_object()
 
@@ -49,14 +55,12 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        response = HttpResponse(status=200)
-        response["X-Accel-Redirect"] = f"/protected/{certificate.pdf_file.name}"
-        response["Content-Disposition"] = (
-            f'attachment; filename="certificate_{certificate.certificate_code}.pdf"'
+        return FileResponse(
+            certificate.pdf_file.open("rb"),
+            as_attachment=True,
+            filename=f"certificate_{certificate.certificate_code}.pdf",
+            content_type="application/pdf",
         )
-        # Defer the MIME type to Nginx's internal location (mime.types).
-        del response["Content-Type"]
-        return response
 
     @action(detail=True, methods=["post"], url_path="validate")
     def validate_ownership(self, request, pk=None):
