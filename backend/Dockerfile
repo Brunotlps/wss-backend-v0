@@ -69,7 +69,8 @@ ENV PYTHONUNBUFFERED=1 \
 # Define o diretório de trabalho dentro do container
 WORKDIR /app
 
-# Instala dependências do sistema necessárias para PostgreSQL e Pillow
+# Instala dependências do sistema necessárias para PostgreSQL, Pillow e
+# extração de duração de vídeo (ffprobe, do pacote ffmpeg) — issue #111
 RUN apt-get update && apt-get install -y \
     postgresql-client \
     libpq-dev \
@@ -80,6 +81,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     libmagic1 \
     file \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copia o arquivo de requirements
