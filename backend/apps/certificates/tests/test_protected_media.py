@@ -1,11 +1,16 @@
-"""Deny-tests for protected certificate PDF delivery (#74).
+"""Deny-tests for protected certificate PDF delivery (#74, #116).
 
 The certificate PDF embeds PII (student name, course, instructor, date). It must
 never be reachable through a public ``/media/`` URL: the serializer must not
 advertise ``pdf_file``/``pdf_url``, and the authenticated ``download`` action
-must hand the bytes off to Nginx via ``X-Accel-Redirect`` (gated by
-``IsCertificateOwner``) rather than exposing the raw media path.
+streams the bytes directly from Django via ``FileResponse`` (gated by
+``IsCertificateOwner``) rather than exposing the raw media path. It deliberately
+does NOT use ``X-Accel-Redirect``: Nginx drops the CORS header when it serves a
+file from an internal location, breaking the frontend's authenticated XHR
+download (#116). The ``/media/certificates/`` location stays ``internal``.
 """
+
+from django.core.files.base import ContentFile
 
 from rest_framework import status
 
@@ -16,13 +21,27 @@ from apps.enrollments.factories import EnrollmentFactory
 
 URL = "/api/certificates/"
 
+PDF_BYTES = b"%PDF-1.4 fake certificate bytes"
+
 
 def _cert_with_pdf(user, name="certificates/2026/06/WSS-2026-ABC123.pdf"):
-    """Create a certificate owned by ``user`` with a (fake) stored PDF."""
+    """Create a certificate owned by ``user`` with a (name-only) stored PDF.
+
+    Used by tests that only need ``pdf_file`` to be truthy (e.g. download_url
+    presence) and never read the file from disk.
+    """
     enrollment = EnrollmentFactory(user=user)
     cert = CertificateFactory(enrollment=enrollment)
     cert.pdf_file = name
     cert.save(update_fields=["pdf_file"])
+    return cert
+
+
+def _cert_with_real_pdf(user, basename="WSS-2026-XYZ999.pdf"):
+    """Create a certificate owned by ``user`` with real PDF bytes on disk."""
+    enrollment = EnrollmentFactory(user=user)
+    cert = CertificateFactory(enrollment=enrollment)
+    cert.pdf_file.save(basename, ContentFile(PDF_BYTES), save=True)
     return cert
 
 
@@ -63,22 +82,21 @@ class TestSerializerDoesNotLeakPdfURL:
 
 @pytest.mark.django_db
 class TestProtectedDownload:
-    """The download action serves bytes via X-Accel-Redirect, owner-gated (#74)."""
+    """The download action streams PDF bytes from Django, owner-gated (#74, #116)."""
 
-    def test_owner_download_gets_x_accel_redirect(self, auth_client):
-        """Owner download → 200 with X-Accel-Redirect to the internal location."""
-        cert = _cert_with_pdf(
-            auth_client.user, "certificates/2026/06/WSS-2026-XYZ999.pdf"
-        )
+    def test_owner_download_streams_pdf_bytes(self, auth_client):
+        """Owner download → 200 streaming the PDF bytes, NOT an X-Accel handoff."""
+        cert = _cert_with_real_pdf(auth_client.user)
 
         response = auth_client.get(f"{URL}{cert.pk}/download/")
 
         assert response.status_code == status.HTTP_200_OK
-        assert (
-            response["X-Accel-Redirect"]
-            == "/protected/certificates/2026/06/WSS-2026-XYZ999.pdf"
-        )
+        assert response["Content-Type"] == "application/pdf"
         assert "attachment" in response["Content-Disposition"]
+        # Bytes come from Django (FileResponse), so Nginx never substitutes the
+        # response and cannot strip the CORS header (#116).
+        assert "X-Accel-Redirect" not in response
+        assert b"".join(response.streaming_content) == PDF_BYTES
 
     def test_non_owner_download_denied(self, auth_client):
         """Another user's certificate download → 404 from the filtered queryset."""

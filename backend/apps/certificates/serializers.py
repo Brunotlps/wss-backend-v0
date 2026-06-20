@@ -69,7 +69,7 @@ class CertificateSerializer(serializers.ModelSerializer):
         The raw ``pdf_file``/``pdf_url`` are never exposed: the PDF embeds PII
         and was reachable at a guessable public ``/media/`` path. Clients must
         go through the authenticated, owner-checked ``download`` action, which
-        serves the bytes via Nginx X-Accel-Redirect.
+        streams the bytes directly from Django via ``FileResponse`` (#116).
 
         Args:
             obj (Certificate): Certificate instance.
