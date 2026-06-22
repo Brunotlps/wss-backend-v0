@@ -397,32 +397,56 @@ class LessonProgressSerializer(serializers.ModelSerializer):
 
         return attrs
 
-    def update(self, instance, validated_data):
-        """
-        Update lesson progress with automatic timestamp management.
+    def _apply_completion_side_effects(
+        self, validated_data, *, lesson, previously_completed
+    ):
+        """Set completion/watch timestamps and duration consistently.
+
+        Shared by ``create`` and ``update`` so a progress record marked
+        ``completed`` always gets ``completed_at`` and ``watched_duration =
+        lesson.duration`` (previously only ``update`` did this — #31).
 
         Auto-sets:
-        - completed_at when completed changes from False to True
-        - last_watched_at when watched_duration changes
+        - completed_at when completed transitions to True
+        - last_watched_at when watched_duration is provided
         - watched_duration = lesson.duration when completed=True
 
         Args:
-            instance (LessonProgress): Existing progress record
-            validated_data (dict): Validated data to update
+            validated_data (dict): Validated data to mutate in place.
+            lesson (Lesson): Lesson the progress refers to.
+            previously_completed (bool): Whether the record was already
+                completed (False on create).
 
         Returns:
-            LessonProgress: Updated progress instance
+            dict: The mutated validated_data.
         """
-
-        if validated_data.get("completed") and not instance.completed:
+        if validated_data.get("completed") and not previously_completed:
             validated_data["completed_at"] = timezone.now()
 
         if "watched_duration" in validated_data:
             validated_data["last_watched_at"] = timezone.now()
 
         if validated_data.get("completed"):
-            validated_data["watched_duration"] = instance.lesson.duration
+            validated_data["watched_duration"] = lesson.duration
 
+        return validated_data
+
+    def create(self, validated_data):
+        """Create lesson progress, applying completion side effects (#31)."""
+        self._apply_completion_side_effects(
+            validated_data,
+            lesson=validated_data["lesson"],
+            previously_completed=False,
+        )
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        """Update lesson progress, applying completion side effects."""
+        self._apply_completion_side_effects(
+            validated_data,
+            lesson=instance.lesson,
+            previously_completed=instance.completed,
+        )
         return super().update(instance, validated_data)
 
 
