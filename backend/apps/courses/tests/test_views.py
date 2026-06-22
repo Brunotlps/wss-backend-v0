@@ -84,6 +84,19 @@ class TestCourseViewSet:
         assert response.status_code == status.HTTP_201_CREATED
         assert Course.objects.filter(title="New Course").exists()
 
+    def test_create_course_with_colliding_slug_returns_201(self, instructor_client):
+        """Colliding auto-slugs are disambiguated instead of raising a 500."""
+        CourseFactory(instructor=instructor_client.user, title="Programação", slug="")
+        payload = {
+            "title": "Programacao",
+            "description": "Learn stuff",
+            "price": "79.00",
+        }
+        response = instructor_client.post(self.URL, payload)
+        assert response.status_code == status.HTTP_201_CREATED
+        slugs = set(Course.objects.values_list("slug", flat=True))
+        assert slugs == {"programacao", "programacao-2"}
+
     def test_retrieve_published_course(self, api_client):
         """Published course can be retrieved by anyone."""
         course = CourseFactory(is_published=True)
