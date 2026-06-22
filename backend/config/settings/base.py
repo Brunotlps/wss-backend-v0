@@ -223,6 +223,10 @@ REST_FRAMEWORK = {
         'oauth': '20/hour',
         'verify': '20/min',
         'health': '120/min',
+        # Protected video streaming: a <video> element fires many Range requests
+        # per session, so this is generous — large enough to never trip a real
+        # viewing session, small enough to cap pathological abuse (#112).
+        'video_stream': '2000/hour',
     },
     # Trusted proxy hops in front of the app. Nginx is configured with
     # real_ip (CF-Connecting-IP) and overwrites X-Forwarded-For with the

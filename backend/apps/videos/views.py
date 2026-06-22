@@ -55,6 +55,7 @@ from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from django_filters.rest_framework import DjangoFilterBackend
@@ -322,9 +323,19 @@ class VideoFileView(APIView):
     after the enrollment check) also authorizes access without an Authorization
     header, so a browser ``<video src>`` can stream protected content with
     native Range/seek support.
+
+    Throttling uses a dedicated, generous scope here (#112): a ``<video>``
+    element fires many Range requests per session (buffering plus every seek),
+    each hitting this view. Under the global ``anon`` rate (100/hour) a single
+    viewing session would exhaust the limit and get 429s mid-playback. The
+    ``video_stream`` scope is sized to absorb a real session while still capping
+    pathological abuse; access is also gated by the short-lived, video-scoped
+    signed token (or ``IsEnrolled``).
     """
 
     permission_classes = [IsEnrolled]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "video_stream"
 
     def get(self, request: Request, pk: int) -> HttpResponse:
         """Return an X-Accel-Redirect response for an authorized video file.
