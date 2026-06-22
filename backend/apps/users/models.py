@@ -73,6 +73,16 @@ class User(AbstractUser, TimeStampedModel):
         """String representation of the user."""
         return self.email or self.username
 
+    def save(self, *args, **kwargs):
+        """Normalize the email to lowercase before saving (single source).
+
+        Case-insensitive storage prevents duplicate accounts that differ only
+        by casing and keeps email lookups (login, OAuth linking) consistent.
+        """
+        if self.email:
+            self.email = self.email.lower()
+        super().save(*args, **kwargs)
+
     def get_full_name(self):
         """
         Return the user's full name (first_name + last_name).

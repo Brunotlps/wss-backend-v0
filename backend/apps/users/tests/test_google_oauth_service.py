@@ -225,6 +225,15 @@ class TestFindOrCreateUser:
             user=existing_user, provider="google", uid="google-sub-new-link"
         ).exists()
 
+    def test_existing_email_different_case_links_no_duplicate(self):
+        """A claim email differing only by case links the existing user (no duplicate)."""
+        existing_user = UserFactory(email="findcreate@gmail.com")
+        claims = self._claims(sub="google-sub-case", email="FindCreate@Gmail.com")
+        user, created = self.service._find_or_create_user(claims)
+        assert user == existing_user
+        assert created is False
+        assert User.objects.filter(email__iexact="findcreate@gmail.com").count() == 1
+
     def test_new_user_created_from_google_claims(self):
         """Claims with no matching user must create a new User and SocialAccount."""
         claims = self._claims(sub="google-sub-brand-new", email="brandnew@gmail.com")

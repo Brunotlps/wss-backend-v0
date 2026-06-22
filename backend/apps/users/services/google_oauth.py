@@ -174,7 +174,7 @@ class GoogleOAuthService:
             Tuple of (User instance, created: bool).
         """
         uid = claims["sub"]
-        email = claims["email"]
+        email = claims["email"].lower()
         extra_data = {
             "email": email,
             "name": claims.get("name", ""),
@@ -196,7 +196,7 @@ class GoogleOAuthService:
 
         # 2. Existing user with same verified email → link new SocialAccount
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(email__iexact=email)
             SocialAccount.objects.create(
                 user=user,
                 provider=SocialAccount.Provider.GOOGLE,
