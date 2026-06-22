@@ -12,7 +12,10 @@ Relationships:
 - Course ←→ Module (One-to-Many): A course can be split into ordered modules
 """
 
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import slugify
@@ -196,6 +199,7 @@ class Course(TimeStampedModel):
         max_digits=10,
         decimal_places=2,
         default=0.00,
+        validators=[MinValueValidator(Decimal("0.00"))],
         help_text=_("Course price in BRL (use 0.00 for free courses)"),
     )
 
@@ -246,6 +250,22 @@ class Course(TimeStampedModel):
         if not self.slug:
             self.slug = generate_unique_slug(Course, self.title, exclude_pk=self.pk)
         super().save(*args, **kwargs)
+
+    def clean(self) -> None:
+        """Validate course-level business rules.
+
+        Enforced for the Django admin (ModelForm full_clean), including the
+        inline ``is_published`` toggle. The API mirrors the publish gate in
+        ``CourseUpdateSerializer``.
+
+        Raises:
+            ValidationError: If the course is published without any lesson.
+        """
+        super().clean()
+        if self.is_published and (not self.pk or not self.lessons.exists()):
+            raise ValidationError(
+                {"is_published": _("Cannot publish a course without lessons.")}
+            )
 
     @property
     def is_free(self):
