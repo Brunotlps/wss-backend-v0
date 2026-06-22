@@ -4,15 +4,18 @@ Hand-off prompt for a **fresh** Claude Code session driving the audit remediatio
 prior conversation history and points to ground-truth files instead of restating them. Paste the
 block below as the first message of a new session.
 
-> **Status (2026-06-19):** Phase 0 + Phase 1 (all **16 Blocking**) are done, merged, and
-> **deployed to prod** (PRs #102–#109). Remaining audit work = Phase 2 (Major) + Phase 3 (hardening).
-> **Before Phase 2**, fix production bug **#110** (milestone #2 "Production Stabilization", NOT an
-> audit finding): the Celery worker never runs in prod (`entrypoint.sh` ignores the container
-> `command` → `celery`/`celery-beat` run gunicorn), so certificate PDFs are stuck and all async
-> tasks are dead. Companion prod bugs: **#111** (video duration 0:00), **#112** (video playback
-> Range). #110 is infra (`entrypoint.sh`/`docker-compose.yml`) + deploy + reprocess stuck certs —
-> not a plain `/fix-issue` slice. See `2026-06-audit-executive-summary.md` (status section),
-> `00-plan.md`, and memory `infra_celery_entrypoint_bug`.
+> **Status (2026-06-22):** Phase 0 + Phase 1 (all **16 Blocking**) are done, merged, and
+> **deployed to prod** (PRs #102–#109). Milestone #2 "Production Stabilization" (prod bugs found
+> after the Blocking deploy, NOT audit findings) is also **COMPLETE and validated in prod**:
+> **#110** (Celery worker ran gunicorn → fixed, PR #113), **#111** (video duration via ffprobe,
+> PR #115), **#112** (streaming hit the anon throttle → scoped `video_stream` rate, PR #120),
+> **#114** (nginx stale upstream IP → resolver + variable proxy_pass, closed as mitigated, PR #119),
+> **#116** (cert download CORS → FileResponse, PR #117). Per-fix backlog docs in
+> `.claude/context/backlog/2026-06-2*.md`; details in memory (`project_state`, infra gotchas).
+>
+> **NOW: Phase 2 (the 37 Major)**, then Phase 3 (28 Minor/hardening). Open follow-ups not yet
+> scheduled: #38 (certificate `on_delete`), #78 (task retry vs final-failure), Stripe webhook
+> robustness (#13/#14/#16/#18 — prod is live, extra care). Start with `/audit-status`.
 
 ---
 
