@@ -48,6 +48,23 @@ class TestUserRegistrationSerializer:
         serializer = UserRegistrationSerializer(data=payload)
         assert not serializer.is_valid()
 
+    def test_duplicate_email_case_insensitive_is_invalid(self):
+        """Email differing only by case is treated as a duplicate."""
+        UserFactory(email="taken@test.com")
+        payload = self._valid_payload(email="Taken@Test.com")
+        serializer = UserRegistrationSerializer(data=payload)
+        assert not serializer.is_valid()
+        assert "email" in serializer.errors
+
+    def test_email_normalized_to_lowercase_on_save(self):
+        """Registered email is stored normalized to lowercase."""
+        serializer = UserRegistrationSerializer(
+            data=self._valid_payload(email="New.User@Test.com")
+        )
+        assert serializer.is_valid(), serializer.errors
+        user = serializer.save()
+        assert user.email == "new.user@test.com"
+
     def test_password_not_in_output(self):
         """Password field is write_only — not present in serializer data."""
         serializer = UserRegistrationSerializer(data=self._valid_payload())

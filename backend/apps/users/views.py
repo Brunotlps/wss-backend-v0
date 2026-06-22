@@ -25,6 +25,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import Profile, User
 from .permissions import IsOwnerOrReadOnly
 from .serializers import (
+    CustomTokenObtainPairSerializer,
     ProfileSerializer,
     UserDetailSerializer,
     UserListSerializer,
@@ -38,9 +39,10 @@ logger = logging.getLogger(__name__)
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-    """Login view with rate limiting: 5 attempts per hour per IP."""
+    """Login view with rate limiting and case-insensitive email."""
 
     throttle_classes = [LoginRateThrottle]
+    serializer_class = CustomTokenObtainPairSerializer
 
 
 class UserRegistrationView(APIView):

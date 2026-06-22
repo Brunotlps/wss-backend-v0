@@ -82,6 +82,16 @@ class TestTokenView:
         assert "access" in response.data
         assert "refresh" in response.data
 
+    def test_login_email_is_case_insensitive(self, api_client):
+        """Login succeeds regardless of the email casing typed by the user."""
+        UserFactory(email="case@test.com")
+        response = api_client.post(
+            self.LOGIN_URL,
+            {"email": "CASE@Test.com", "password": "testpass123!"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert "access" in response.data
+
     def test_login_invalid_password_returns_401(self, api_client):
         """Wrong password returns 401."""
         user = UserFactory()

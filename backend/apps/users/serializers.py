@@ -13,7 +13,22 @@ from django.contrib.auth.password_validation import validate_password
 
 from rest_framework import serializers
 
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+
 from .models import Profile, User
+
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """JWT login serializer that treats the email case-insensitively.
+
+    User emails are stored lowercase (see ``User.save``), so the login email
+    is normalized here to keep authentication working regardless of casing.
+    """
+
+    def validate(self, attrs):
+        """Lowercase the email before delegating to the default validation."""
+        attrs[self.username_field] = attrs.get(self.username_field, "").lower()
+        return super().validate(attrs)
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -49,6 +64,18 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             "email": {"required": True},
             "username": {"required": True},
         }
+
+    def validate_email(self, value):
+        """Normalize email to lowercase and enforce case-insensitive uniqueness.
+
+        DRF's auto-generated UniqueValidator already rejects an exact-case
+        duplicate; this adds the case-insensitive layer (``email__iexact``) so
+        ``User@x`` cannot register when ``user@x`` exists.
+        """
+        value = value.lower()
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("A user with that email already exists.")
+        return value
 
     def validate(self, data):
 

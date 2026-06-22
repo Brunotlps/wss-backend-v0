@@ -38,8 +38,18 @@ def validate(self, attrs):
 
 ### Email normalization & enumeration — #46, #45 (users, Major)
 `validate_email` → `value.lower()`, uniqueness via `email__iexact`; normalize in the OAuth
-`_find_or_create_user` too (prevents duplicate accounts). Reconsider the "email already exists"
-message (#45) to avoid enumeration.
+`_find_or_create_user` too (prevents duplicate accounts). **Done (#46):** `User.save()` lowercases
+the stored email (single source); `validate_email` adds the case-insensitive check; OAuth looks up
+via `email__iexact`; `CustomTokenObtainPairSerializer` lowercases the login email so storage
+normalization does not break case-typed logins.
+
+**#45 — product decision (2026-06-22): documented & accepted, no code change.** The explicit
+"email already exists" message is kept. Rationale: the registration endpoint is throttled to
+`register: 5/day` per IP (mass enumeration is impractical), and true non-enumeration requires an
+email-confirmation flow (always-200 "check your inbox") — a separate feature, risky to retrofit on
+a live product. Revisit if/when that flow is built. **Follow-up:** legacy case-duplicate rows
+predating #46 can make the OAuth `email__iexact` lookup raise `MultipleObjectsReturned`; needs a
+one-off detection/merge before it can bite (not auto-merged here).
 
 ### Price validation — #65 (courses, Major)
 `validate_price` rejects `value < 0` in create & update serializers (or `MinValueValidator(0)`
