@@ -11,7 +11,7 @@ import pytest
 
 from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory, LessonProgressFactory
-from apps.enrollments.models import Enrollment
+from apps.enrollments.models import Enrollment, LessonProgress
 from apps.enrollments.views import EnrollmentViewSet
 from apps.payments.factories import PaymentFactory
 from apps.payments.models import Payment
@@ -262,6 +262,25 @@ class TestLessonProgressViewSet:
         other_progress = LessonProgressFactory()
         response = auth_client.get(f"{self.URL}{other_progress.pk}/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_create_completed_progress_sets_timestamp_and_duration(self, auth_client):
+        """POST completed=True sets completed_at and watched_duration on create (#31)."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        lesson = LessonFactory(course=enrollment.course)
+        response = auth_client.post(
+            self.URL,
+            {
+                "enrollment_id": enrollment.pk,
+                "lesson_id": lesson.pk,
+                "completed": True,
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+        progress = LessonProgress.objects.get(pk=response.data["id"])
+        assert progress.completed is True
+        assert progress.completed_at is not None
+        assert progress.watched_duration == lesson.duration
 
     def test_progress_on_foreign_course_lesson_returns_400(self, auth_client):
         """Progress for a lesson outside the enrollment's course is rejected (#29).
