@@ -13,9 +13,20 @@ block below as the first message of a new session.
 > **#116** (cert download CORS → FileResponse, PR #117). Per-fix backlog docs in
 > `.claude/context/backlog/2026-06-2*.md`; details in memory (`project_state`, infra gotchas).
 >
-> **NOW: Phase 2 (the 37 Major)**, then Phase 3 (28 Minor/hardening). Open follow-ups not yet
-> scheduled: #38 (certificate `on_delete`), #78 (task retry vs final-failure), Stripe webhook
-> robustness (#13/#14/#16/#18 — prod is live, extra care). Start with `/audit-status`.
+> **Phase 2 (Major) — IN PROGRESS.** The **models + serializers layers are done, merged, deployed,
+> and validated in prod (2026-06-22)**: #68 (slug collision, PR #125), #65/#66/#67 (courses price /
+> drop serializer authz / publish content-gate, PR #126, migration `courses/0004`), #46 (email
+> normalization end-to-end, PR #123), #31 (progress-create timestamps, PR #124). #45 (registration
+> enumeration) closed as a **documented product decision** (kept message; register throttled 5/day;
+> non-enumeration needs a confirmation flow). Prod smoke = 9/9 (shell script, atomic+rollback). Batch
+> backlog: `.claude/context/backlog/2026-06-22-phase2-models-serializers-*.md`.
+>
+> **NEXT in Phase 2: the views/throttling layer** (`05-views-throttling.md`): #64, #69, #15,
+> #57/#58/#59, #81, #88 — then services/signals/tasks (`06`, incl. Stripe webhooks #13/#14/#16/#18,
+> prod-live, extra care). Then Phase 3 (Minor: `07-tests` + `08-lint-style`, plus videos #60).
+> Open follow-ups: **#122** (module serializer authz → 403, opened this session), legacy email
+> case-duplicates (OAuth `iexact` `MultipleObjectsReturned`), #38 (cert `on_delete`), #78 (task
+> retry vs final-failure). Start with `/audit-status`.
 
 ---
 
