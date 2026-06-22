@@ -83,6 +83,35 @@ class TestCourseModel:
         assert course1.slug == "programacao"
         assert course2.slug == "programacao-2"
 
+    def test_negative_price_fails_full_clean(self):
+        """A negative price is rejected by model validation (admin/full_clean)."""
+        from decimal import Decimal
+
+        from django.core.exceptions import ValidationError
+
+        course = CourseFactory()
+        course.price = Decimal("-5.00")
+        with pytest.raises(ValidationError):
+            course.full_clean()
+
+    def test_clean_blocks_publishing_without_lessons(self):
+        """Publishing a course with zero lessons is rejected (admin/full_clean)."""
+        from django.core.exceptions import ValidationError
+
+        course = CourseFactory(is_published=False)
+        course.is_published = True
+        with pytest.raises(ValidationError):
+            course.full_clean()
+
+    def test_clean_allows_publishing_with_lessons(self):
+        """A course with at least one lesson can be published."""
+        from apps.videos.factories import LessonFactory
+
+        course = CourseFactory(is_published=False)
+        LessonFactory(course=course, order=1)
+        course.is_published = True
+        course.full_clean()  # must not raise
+
     def test_get_enrolled_count_no_enrollments(self):
         """get_enrolled_count() returns 0 when no enrollments exist."""
         course = CourseFactory()

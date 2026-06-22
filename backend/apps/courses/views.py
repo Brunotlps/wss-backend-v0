@@ -211,6 +211,14 @@ class CourseViewSet(viewsets.ModelViewSet):
             return CourseUpdateSerializer
         return CourseDetailSerializer
 
+    def perform_create(self, serializer):
+        """Assign the authenticated instructor as the course owner.
+
+        Instructor role is enforced by IsInstructorOrReadOnly (403); this only
+        sets ownership server-side to prevent mass-assignment.
+        """
+        serializer.save(instructor=self.request.user)
+
     def get_queryset(self):
         """
         Filter courses based on user authentication status and role permissions.

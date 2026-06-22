@@ -180,20 +180,6 @@ class CourseCreateSerializer(serializers.ModelSerializer):
             )
         return value
 
-    def create(self, validated_data):
-        """Create course with automatic instructor assignment."""
-        request = self.context["request"]
-
-        if not request.user.is_instructor:
-            raise serializers.ValidationError(
-                "Only instructors can create courses. Please upgrade your account."
-            )
-
-        validated_data["instructor"] = request.user
-
-        # Slug auto-generation (unique) is delegated to Course.save().
-        return super().create(validated_data)
-
 
 class CourseUpdateSerializer(serializers.ModelSerializer):
     """
@@ -230,15 +216,19 @@ class CourseUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
-        """Business logic validation."""
-        request = self.context["request"]
+        """Block publishing a course that has no lessons.
 
-        # Only course instructor can update
-        if self.instance.instructor != request.user:
+        Authorization (ownership) is enforced by the permission classes
+        (IsCourseOwnerOrReadOnly → 403), not here.
+        """
+        if (
+            data.get("is_published")
+            and self.instance
+            and not self.instance.lessons.exists()
+        ):
             raise serializers.ValidationError(
-                "Only the course instructor can update this course."
+                {"is_published": "Cannot publish a course without lessons."}
             )
-
         return data
 
     def update(self, instance, validated_data):

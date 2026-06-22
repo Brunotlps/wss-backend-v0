@@ -5,7 +5,11 @@ from rest_framework.test import APIRequestFactory
 import pytest
 
 from apps.courses.factories import CourseFactory, ModuleFactory
-from apps.courses.serializers import ModuleSerializer, ModuleWithLessonsSerializer
+from apps.courses.serializers import (
+    CourseUpdateSerializer,
+    ModuleSerializer,
+    ModuleWithLessonsSerializer,
+)
 from apps.users.factories import InstructorFactory
 from apps.videos.factories import LessonFactory
 
@@ -93,6 +97,28 @@ class TestModuleSerializer:
         assert serializer.is_valid(), serializer.errors
         updated = serializer.save()
         assert updated.title == "New"
+
+
+@pytest.mark.django_db
+class TestCourseUpdateSerializer:
+    """CourseUpdateSerializer must not perform authorization (that belongs to permissions)."""
+
+    def _context(self, user):
+        request = APIRequestFactory().patch("/api/courses/1/")
+        request.user = user
+        return {"request": request}
+
+    def test_does_not_enforce_ownership_at_validation(self):
+        """A non-owner is not rejected at validation (authz returns 403 via permissions)."""
+        course = CourseFactory()
+        other_instructor = InstructorFactory()
+        serializer = CourseUpdateSerializer(
+            course,
+            data={"title": "Renamed"},
+            partial=True,
+            context=self._context(other_instructor),
+        )
+        assert serializer.is_valid(), serializer.errors
 
 
 @pytest.mark.django_db

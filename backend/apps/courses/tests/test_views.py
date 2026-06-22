@@ -97,6 +97,35 @@ class TestCourseViewSet:
         slugs = set(Course.objects.values_list("slug", flat=True))
         assert slugs == {"programacao", "programacao-2"}
 
+    def test_create_course_with_negative_price_returns_400(self, instructor_client):
+        """A negative price is rejected with 400."""
+        payload = {
+            "title": "Cheap Course",
+            "description": "Learn stuff",
+            "price": "-10.00",
+        }
+        response = instructor_client.post(self.URL, payload)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_publish_course_without_lessons_returns_400(self, instructor_client):
+        """Publishing an empty course is blocked with 400."""
+        course = CourseFactory(instructor=instructor_client.user, is_published=False)
+        response = instructor_client.patch(
+            f"{self.URL}{course.pk}/", {"is_published": True}
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_publish_course_with_lessons_succeeds(self, instructor_client):
+        """Publishing a course that has lessons succeeds."""
+        course = CourseFactory(instructor=instructor_client.user, is_published=False)
+        LessonFactory(course=course, order=1)
+        response = instructor_client.patch(
+            f"{self.URL}{course.pk}/", {"is_published": True}
+        )
+        assert response.status_code == status.HTTP_200_OK
+        course.refresh_from_db()
+        assert course.is_published is True
+
     def test_retrieve_published_course(self, api_client):
         """Published course can be retrieved by anyone."""
         course = CourseFactory(is_published=True)
