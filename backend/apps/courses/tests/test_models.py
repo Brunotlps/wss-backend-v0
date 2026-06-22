@@ -36,6 +36,13 @@ class TestCategoryModel:
         with pytest.raises(IntegrityError):
             CategoryFactory(name="Unique Cat")
 
+    def test_slug_collision_gets_unique_suffix(self):
+        """Distinct names that slugify to the same base get unique slugs."""
+        cat1 = CategoryFactory(name="Programação", slug="")
+        cat2 = CategoryFactory(name="Programacao", slug="")
+        assert cat1.slug == "programacao"
+        assert cat2.slug == "programacao-2"
+
 
 @pytest.mark.django_db
 class TestCourseModel:
@@ -68,6 +75,13 @@ class TestCourseModel:
         course = CourseFactory(title="Django Advanced Unique", slug="")
         course.refresh_from_db()
         assert course.slug == "django-advanced-unique"
+
+    def test_slug_collision_gets_unique_suffix(self):
+        """Distinct titles that slugify to the same base get unique slugs."""
+        course1 = CourseFactory(title="Programação", slug="")
+        course2 = CourseFactory(title="Programacao", slug="")
+        assert course1.slug == "programacao"
+        assert course2.slug == "programacao-2"
 
     def test_get_enrolled_count_no_enrollments(self):
         """get_enrolled_count() returns 0 when no enrollments exist."""

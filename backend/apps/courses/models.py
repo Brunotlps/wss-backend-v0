@@ -23,6 +23,41 @@ from apps.core.models import TimeStampedModel
 User = get_user_model()
 
 
+def generate_unique_slug(
+    model_cls: type[models.Model],
+    value: str,
+    *,
+    exclude_pk: int | None = None,
+) -> str:
+    """Build a slug for ``value`` that is unique within ``model_cls``.
+
+    Slugs are ASCII-only (``allow_unicode=False``); accented variants that
+    collapse to the same base (e.g. "Programação" / "Programacao") are
+    disambiguated with a numeric suffix instead of raising an IntegrityError.
+
+    Args:
+        model_cls: Model owning the unique ``slug`` field.
+        value: Source text to slugify (e.g. the title or name).
+        exclude_pk: Primary key to exclude from the uniqueness check
+            (the instance being updated).
+
+    Returns:
+        A slug guaranteed unique against the current rows: ``base`` if free,
+        otherwise ``base-2``, ``base-3``, ...
+    """
+    base = slugify(value)
+    slug = base
+    queryset = model_cls.objects.all()
+    if exclude_pk is not None:
+        queryset = queryset.exclude(pk=exclude_pk)
+
+    counter = 2
+    while queryset.filter(slug=slug).exists():
+        slug = f"{base}-{counter}"
+        counter += 1
+    return slug
+
+
 class Category(TimeStampedModel):
     """
     Course category for organizing courses by topic.
@@ -76,9 +111,9 @@ class Category(TimeStampedModel):
         return self.name
 
     def save(self, *args, **kwargs):
-        """Override save to auto-generate slug from name."""
+        """Override save to auto-generate a unique slug from name."""
         if not self.slug:
-            self.slug = slugify(self.name)
+            self.slug = generate_unique_slug(Category, self.name, exclude_pk=self.pk)
         super().save(*args, **kwargs)
 
 
@@ -207,9 +242,9 @@ class Course(TimeStampedModel):
         return self.title
 
     def save(self, *args, **kwargs):
-        """Override save to auto-generate slug from title."""
+        """Override save to auto-generate a unique slug from title."""
         if not self.slug:
-            self.slug = slugify(self.title)
+            self.slug = generate_unique_slug(Course, self.title, exclude_pk=self.pk)
         super().save(*args, **kwargs)
 
     @property

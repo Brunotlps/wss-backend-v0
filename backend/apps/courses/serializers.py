@@ -10,13 +10,11 @@ This module contains serializers for:
 All serializers include proper validation and optimization.
 """
 
-from django.utils.text import slugify
-
 from rest_framework import serializers
 
 from apps.users.serializers import UserListSerializer
 
-from .models import Category, Course, Module
+from .models import Category, Course, Module, generate_unique_slug
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -42,16 +40,12 @@ class CategorySerializer(serializers.ModelSerializer):
             "slug": {"required": False},  # Optional, auto-generated if empty
         }
 
-    def create(self, validated_data):
-        """Auto-generate slug from name if not provided."""
-        if not validated_data.get("slug"):
-            validated_data["slug"] = slugify(validated_data["name"])
-        return super().create(validated_data)
-
     def update(self, instance, validated_data):
-        """Update slug if name changed and slug not provided."""
+        """Regenerate a unique slug if name changed and slug not provided."""
         if "name" in validated_data and not validated_data.get("slug"):
-            validated_data["slug"] = slugify(validated_data["name"])
+            validated_data["slug"] = generate_unique_slug(
+                Category, validated_data["name"], exclude_pk=instance.pk
+            )
         return super().update(instance, validated_data)
 
 
@@ -197,9 +191,7 @@ class CourseCreateSerializer(serializers.ModelSerializer):
 
         validated_data["instructor"] = request.user
 
-        if not validated_data.get("slug"):
-            validated_data["slug"] = slugify(validated_data["title"])
-
+        # Slug auto-generation (unique) is delegated to Course.save().
         return super().create(validated_data)
 
 
@@ -250,9 +242,11 @@ class CourseUpdateSerializer(serializers.ModelSerializer):
         return data
 
     def update(self, instance, validated_data):
-        """Update slug if title changed and slug not provided."""
+        """Regenerate a unique slug if title changed and slug not provided."""
         if "title" in validated_data and not validated_data.get("slug"):
-            validated_data["slug"] = slugify(validated_data["title"])
+            validated_data["slug"] = generate_unique_slug(
+                Course, validated_data["title"], exclude_pk=instance.pk
+            )
 
         return super().update(instance, validated_data)
 
