@@ -3,7 +3,7 @@
 **Data:** 2026-06-23
 **Branch:** `fix/courses-n-plus-one-64` (a partir de `main`) → **PR aberto** (squash → `main`)
 **Layer:** `05-views-throttling.md` · **Phase 2 (Major)** · primeira slice do bloco views/throttling
-**Status:** commitado e pushado; **aguardando merge + deploy + smoke em prod**.
+**Status:** mergeado, **deployado e validado em prod 2026-06-23**.
 
 ## Bug
 
@@ -48,8 +48,9 @@ emite SQL próprio. Contradizia a claim de otimização no docstring do viewset 
 
 ## Done-criteria (`05`, parte de #64)
 - [x] list/detail sem `COUNT` por linha (asserção de query count em teste)
-- [ ] validado em prod (após merge+deploy) — smoke: `GET /api/courses/` e `GET /api/courses/{id}/`
-      retornam `enrolled_count`/`lessons_count` corretos; sem regressão de contrato
+- [x] validado em prod (2026-06-23): `GET /api/courses/` → 200, `enrolled_count=8`;
+      `GET /api/courses/1/` → 200, `enrolled_count=8` (consistente com o list), `lessons_count=1`,
+      `is_enrolled=False`. Sem 500, sem regressão de contrato.
 
 ## Notas
 - Deploy será só-de-código → `docker compose restart backend` (sem rebuild/nginx, sem migração).
