@@ -46,6 +46,9 @@ Database Optimization:
     - Queryset filtering is applied at the database level for efficiency
 """
 
+import logging
+
+from django.db import transaction
 from django.db.models import Count, Q
 
 from rest_framework import status, viewsets
@@ -66,6 +69,7 @@ from .permissions import (
     IsModuleCourseInstructorOrReadOnly,
 )
 from .serializers import (
+    AdjustPriceSerializer,
     CategorySerializer,
     CourseCreateSerializer,
     CourseDetailSerializer,
@@ -74,6 +78,8 @@ from .serializers import (
     ModuleSerializer,
     ModuleWithLessonsSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -365,6 +371,70 @@ class CourseViewSet(viewsets.ModelViewSet):
             modules, many=True, context={"request": request}
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @transaction.atomic
+    @action(detail=True, methods=["post"], url_path="adjust-price")
+    def adjust_price(self, request, pk=None):
+        """Adjust a course price through an audited, owner-only endpoint.
+
+        Endpoint: POST /api/courses/{id}/adjust-price/
+
+        The normal update path freezes price once a course has active
+        enrollments (see CourseUpdateSerializer); this action is the
+        sanctioned way to change it. Owner-only is enforced by
+        IsCourseOwnerOrReadOnly (non-owner → 403). When the course has
+        active enrollments, the caller must pass ``confirm=true``.
+
+        Existing enrollments are unaffected: each student keeps the amount
+        recorded in their Payment; ``price`` is only the sticker price for
+        future purchases.
+
+        Body:
+            new_price (Decimal >= 0): the new sticker price.
+            confirm (bool): required to be true when active enrollments exist.
+
+        Returns:
+            200 with the new price, or 400 (invalid price / confirmation
+            required), or 403 (not the owner).
+        """
+        course = self.get_object()  # enforces owner-only via object permission
+        serializer = AdjustPriceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        new_price = serializer.validated_data["new_price"]
+        confirm = serializer.validated_data["confirm"]
+        enrolled_count = course.get_enrolled_count()
+
+        if enrolled_count > 0 and not confirm:
+            return Response(
+                {
+                    "detail": (
+                        "This course has active enrollments. Resubmit with "
+                        "confirm=true to adjust the price."
+                    ),
+                    "enrolled_count": enrolled_count,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        old_price = course.price
+        course.price = new_price
+        course.save(update_fields=["price", "updated_at"])
+
+        logger.info(
+            "Course price adjusted: course=%s old=%s new=%s actor=%s "
+            "enrolled_count=%s",
+            course.pk,
+            old_price,
+            new_price,
+            request.user.pk,
+            enrolled_count,
+        )
+
+        return Response(
+            {"id": course.pk, "price": str(course.price)},
+            status=status.HTTP_200_OK,
+        )
 
 
 class ModuleViewSet(viewsets.ModelViewSet):
