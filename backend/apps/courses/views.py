@@ -46,6 +46,8 @@ Database Optimization:
     - Queryset filtering is applied at the database level for efficiency
 """
 
+from django.db.models import Count, Q
+
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -267,7 +269,18 @@ class CourseViewSet(viewsets.ModelViewSet):
             }
         """
 
-        queryset = super().get_queryset()
+        queryset = (
+            super()
+            .get_queryset()
+            .annotate(
+                annotated_enrolled_count=Count(
+                    "enrollments",
+                    filter=Q(enrollments__is_active=True),
+                    distinct=True,
+                ),
+                annotated_lessons_count=Count("lessons", distinct=True),
+            )
+        )
         user = self.request.user
 
         # Staff can see all courses (admin mode)
@@ -276,8 +289,6 @@ class CourseViewSet(viewsets.ModelViewSet):
 
         # Instructors see own courses + published courses
         if user.is_authenticated and user.is_instructor:
-            from django.db.models import Q
-
             return queryset.filter(Q(instructor=user) | Q(is_published=True)).distinct()
 
         # Anonymous and regular users see only published courses

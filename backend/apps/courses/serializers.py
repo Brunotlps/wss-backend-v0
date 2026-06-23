@@ -90,7 +90,15 @@ class CourseListSerializer(serializers.ModelSerializer):
         ]
 
     def get_enrolled_count(self, obj):
-        """Return number of active enrollments."""
+        """Return number of active enrollments.
+
+        Prefers the ``annotated_enrolled_count`` annotation set by the viewset
+        ``get_queryset`` (avoids an N+1 COUNT per row); falls back to a query
+        when the serializer is used outside that queryset.
+        """
+        count = getattr(obj, "annotated_enrolled_count", None)
+        if count is not None:
+            return count
         return obj.enrollments.filter(is_active=True).count()
 
 
@@ -132,7 +140,14 @@ class CourseDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def get_enrolled_count(self, obj):
-        """Return number of active enrollments."""
+        """Return number of active enrollments.
+
+        Prefers the ``annotated_enrolled_count`` annotation set by the viewset
+        ``get_queryset``; falls back to a query when unavailable.
+        """
+        count = getattr(obj, "annotated_enrolled_count", None)
+        if count is not None:
+            return count
         return obj.enrollments.filter(is_active=True).count()
 
     def get_is_enrolled(self, obj):
@@ -143,7 +158,14 @@ class CourseDetailSerializer(serializers.ModelSerializer):
         return False
 
     def get_lessons_count(self, obj):
-        """Return total number of lessons in this course."""
+        """Return total number of lessons in this course.
+
+        Prefers the ``annotated_lessons_count`` annotation set by the viewset
+        ``get_queryset``; falls back to a query when unavailable.
+        """
+        count = getattr(obj, "annotated_lessons_count", None)
+        if count is not None:
+            return count
         return obj.lessons.count()
 
 
