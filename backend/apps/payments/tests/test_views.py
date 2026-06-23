@@ -104,12 +104,16 @@ class TestCreatePaymentIntentView:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "free" in response.data["detail"].lower()
 
-    def test_already_enrolled_returns_400(self, auth_client):
-        """User already enrolled in course returns 400."""
+    def test_already_enrolled_returns_409(self, auth_client):
+        """User already enrolled in course returns 409 Conflict (#15).
+
+        A business-rule conflict (already enrolled) must be distinguishable
+        from a validation error (400) per api-conventions.md.
+        """
         course = CourseFactory(price=100)
         EnrollmentFactory(user=auth_client.user, course=course)
         response = auth_client.post(self.URL, {"course_id": course.pk})
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_409_CONFLICT
         assert "enrolled" in response.data["detail"].lower()
 
     @patch("apps.payments.views.StripeService.create_payment_intent")
