@@ -78,8 +78,9 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
         Returns:
             200: {client_secret, payment_intent_id, amount, currency}
-            400: course_id missing | course is free | already enrolled
+            400: course_id missing | course is free
             404: course not found
+            409: already enrolled in this course
             500: Stripe API error
         """
         serializer = PaymentIntentRequestSerializer(data=request.data)
@@ -101,7 +102,7 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
         if Enrollment.objects.filter(user=request.user, course=course).exists():
             return Response(
                 {"detail": "Already enrolled in this course."},
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_409_CONFLICT,
             )
 
         try:
