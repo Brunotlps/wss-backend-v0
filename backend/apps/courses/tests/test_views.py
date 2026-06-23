@@ -1,11 +1,15 @@
 """Tests for Courses API views."""
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+
 from rest_framework import status
 
 import pytest
 
 from apps.courses.factories import CategoryFactory, CourseFactory, ModuleFactory
 from apps.courses.models import Course, Module
+from apps.enrollments.factories import EnrollmentFactory
 from apps.videos.factories import LessonFactory
 
 
@@ -132,6 +136,59 @@ class TestCourseViewSet:
         response = api_client.get(f"{self.URL}{course.pk}/")
         assert response.status_code == status.HTTP_200_OK
         assert response.data["title"] == course.title
+
+    def test_list_course_counts_have_no_n_plus_one(self, api_client):
+        """List must not issue a per-course COUNT for enrolled_count (#64).
+
+        Query count for one course must equal the count for several courses;
+        if it grows with the number of rows, enrolled_count is an N+1.
+        """
+
+        def make_course():
+            course = CourseFactory(is_published=True)
+            EnrollmentFactory(course=course, is_active=True)
+
+        make_course()
+        with CaptureQueriesContext(connection) as ctx:
+            response = api_client.get(self.URL)
+        assert response.status_code == status.HTTP_200_OK
+        baseline = len(ctx.captured_queries)
+
+        for _ in range(4):
+            make_course()
+        with CaptureQueriesContext(connection) as ctx:
+            response = api_client.get(self.URL)
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["count"] == 5
+        assert len(ctx.captured_queries) == baseline, (
+            f"N+1 detected: {baseline} queries for 1 course, "
+            f"{len(ctx.captured_queries)} for 5"
+        )
+
+    def test_retrieve_counts_use_annotations_no_extra_count_queries(self, api_client):
+        """Detail endpoint reads annotated counts, no per-relation COUNT (#64)."""
+        course = CourseFactory(is_published=True)
+        EnrollmentFactory.create_batch(2, course=course, is_active=True)
+        EnrollmentFactory(course=course, is_active=False)
+        LessonFactory(course=course, order=1)
+        LessonFactory(course=course, order=2)
+        LessonFactory(course=course, order=3)
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = api_client.get(f"{self.URL}{course.pk}/")
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["enrolled_count"] == 2
+        assert response.data["lessons_count"] == 3
+        count_queries = [
+            q["sql"]
+            for q in ctx.captured_queries
+            if "COUNT(*)" in q["sql"]
+            and ("enrollments_enrollment" in q["sql"] or "videos_lesson" in q["sql"])
+        ]
+        assert (
+            count_queries == []
+        ), f"counts should come from annotations, got: {count_queries}"
 
     def test_search_courses_by_title(self, api_client):
         """Search param filters by title."""
