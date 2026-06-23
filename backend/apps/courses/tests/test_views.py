@@ -233,6 +233,93 @@ class TestCourseViewSet:
 
 
 @pytest.mark.django_db
+class TestCoursePriceGuard:
+    """Soft-freeze on PATCH + audited adjust-price action (#69)."""
+
+    URL = "/api/courses/"
+
+    def test_patch_price_blocked_when_course_has_active_enrollments(
+        self, instructor_client
+    ):
+        """PATCH price is rejected (400) when the course has active enrollments."""
+        course = CourseFactory(instructor=instructor_client.user, price="100.00")
+        EnrollmentFactory(course=course, is_active=True)
+        response = instructor_client.patch(
+            f"{self.URL}{course.pk}/", {"price": "150.00"}
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "price" in response.data
+        course.refresh_from_db()
+        assert str(course.price) == "100.00"
+
+    def test_patch_price_allowed_when_no_enrollments(self, instructor_client):
+        """PATCH price succeeds when the course has no active enrollments."""
+        course = CourseFactory(instructor=instructor_client.user, price="100.00")
+        response = instructor_client.patch(
+            f"{self.URL}{course.pk}/", {"price": "150.00"}
+        )
+        assert response.status_code == status.HTTP_200_OK
+        course.refresh_from_db()
+        assert str(course.price) == "150.00"
+
+    def test_adjust_price_owner_no_enrollments_succeeds(self, instructor_client):
+        """Owner can adjust price without confirm when no active enrollments."""
+        course = CourseFactory(instructor=instructor_client.user, price="100.00")
+        response = instructor_client.post(
+            f"{self.URL}{course.pk}/adjust-price/", {"new_price": "120.00"}
+        )
+        assert response.status_code == status.HTTP_200_OK
+        assert str(response.data["price"]) == "120.00"
+        course.refresh_from_db()
+        assert str(course.price) == "120.00"
+
+    def test_adjust_price_with_enrollments_requires_confirm(self, instructor_client):
+        """Adjusting price on an enrolled course without confirm is rejected (400)."""
+        course = CourseFactory(instructor=instructor_client.user, price="100.00")
+        EnrollmentFactory(course=course, is_active=True)
+        response = instructor_client.post(
+            f"{self.URL}{course.pk}/adjust-price/", {"new_price": "120.00"}
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        course.refresh_from_db()
+        assert str(course.price) == "100.00"
+
+    def test_adjust_price_with_enrollments_and_confirm_succeeds(
+        self, instructor_client
+    ):
+        """Adjusting price on an enrolled course succeeds with confirm=true."""
+        course = CourseFactory(instructor=instructor_client.user, price="100.00")
+        EnrollmentFactory(course=course, is_active=True)
+        response = instructor_client.post(
+            f"{self.URL}{course.pk}/adjust-price/",
+            {"new_price": "120.00", "confirm": True},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        course.refresh_from_db()
+        assert str(course.price) == "120.00"
+
+    def test_adjust_price_non_owner_denied(self, instructor_client):
+        """A non-owner instructor cannot adjust another course's price (403)."""
+        course = CourseFactory(price="100.00")  # owned by a different instructor
+        response = instructor_client.post(
+            f"{self.URL}{course.pk}/adjust-price/", {"new_price": "10.00"}
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        course.refresh_from_db()
+        assert str(course.price) == "100.00"
+
+    def test_adjust_price_negative_rejected(self, instructor_client):
+        """A negative new_price is rejected (400)."""
+        course = CourseFactory(instructor=instructor_client.user, price="100.00")
+        response = instructor_client.post(
+            f"{self.URL}{course.pk}/adjust-price/", {"new_price": "-10.00"}
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        course.refresh_from_db()
+        assert str(course.price) == "100.00"
+
+
+@pytest.mark.django_db
 class TestModuleViewSet:
     """Tests for /api/modules/ CRUD and permissions."""
 

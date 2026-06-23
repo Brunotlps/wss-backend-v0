@@ -10,6 +10,8 @@ This module contains serializers for:
 All serializers include proper validation and optimization.
 """
 
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from apps.users.serializers import UserListSerializer
@@ -238,7 +240,7 @@ class CourseUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
-        """Block publishing a course that has no lessons.
+        """Block publishing without lessons and freeze price on enrolled courses.
 
         Authorization (ownership) is enforced by the permission classes
         (IsCourseOwnerOrReadOnly → 403), not here.
@@ -251,6 +253,24 @@ class CourseUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"is_published": "Cannot publish a course without lessons."}
             )
+
+        # Soft-freeze: once a course has active enrollments, its sticker price
+        # cannot be changed through the normal update path. Use the dedicated
+        # adjust-price action (audited, requires confirmation).
+        if (
+            "price" in data
+            and self.instance
+            and data["price"] != self.instance.price
+            and self.instance.get_enrolled_count() > 0
+        ):
+            raise serializers.ValidationError(
+                {
+                    "price": (
+                        "Cannot change price while the course has active "
+                        "enrollments. Use the adjust-price action."
+                    )
+                }
+            )
         return data
 
     def update(self, instance, validated_data):
@@ -261,6 +281,23 @@ class CourseUpdateSerializer(serializers.ModelSerializer):
             )
 
         return super().update(instance, validated_data)
+
+
+class AdjustPriceSerializer(serializers.Serializer):
+    """Input for the audited adjust-price action.
+
+    Attributes:
+        new_price: The new sticker price (>= 0).
+        confirm: Must be true to adjust the price of a course that already
+            has active enrollments.
+    """
+
+    new_price = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0.00"),
+    )
+    confirm = serializers.BooleanField(default=False)
 
 
 class ModuleSerializer(serializers.ModelSerializer):
