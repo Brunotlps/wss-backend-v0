@@ -1,11 +1,20 @@
 """Tests for Certificate API views."""
 
+from django.core.files.uploadedfile import SimpleUploadedFile
+
 from rest_framework import status
 
 import pytest
 
 from apps.certificates.factories import CertificateFactory
 from apps.enrollments.factories import EnrollmentFactory
+
+
+def _pdf():
+    """Return a tiny in-memory PDF upload for download tests."""
+    return SimpleUploadedFile(
+        "cert.pdf", b"%PDF-1.4 test", content_type="application/pdf"
+    )
 
 
 @pytest.mark.django_db
@@ -48,6 +57,22 @@ class TestCertificateViewSet:
         cert = CertificateFactory(enrollment=enrollment, pdf_file=None)
         response = auth_client.get(f"{self.URL}{cert.pk}/download/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_download_revoked_certificate_returns_410(self, auth_client):
+        """A revoked certificate is not downloadable even with a PDF (#81)."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        cert = CertificateFactory(
+            enrollment=enrollment, is_valid=False, pdf_file=_pdf()
+        )
+        response = auth_client.get(f"{self.URL}{cert.pk}/download/")
+        assert response.status_code == status.HTTP_410_GONE
+
+    def test_download_valid_certificate_with_pdf_returns_200(self, auth_client):
+        """A valid certificate with a PDF is still downloadable (#81 guard)."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        cert = CertificateFactory(enrollment=enrollment, is_valid=True, pdf_file=_pdf())
+        response = auth_client.get(f"{self.URL}{cert.pk}/download/")
+        assert response.status_code == status.HTTP_200_OK
 
     def test_validate_ownership_returns_200(self, auth_client):
         """Validate ownership endpoint returns 200 for own certificate."""

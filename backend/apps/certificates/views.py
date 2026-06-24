@@ -46,8 +46,17 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         Nginx offload is unnecessary, and the ``/media/certificates/`` location
         stays ``internal`` (defense-in-depth, #74): the PDF is never exposed at
         a guessable public ``/media/`` URL.
+
+        Revoked certificates (``is_valid`` is False) return ``410 Gone`` and are
+        not served, so revocation is honoured on the download path (#81).
         """
         certificate = self.get_object()
+
+        if not certificate.is_valid:
+            return Response(
+                {"error": "This certificate has been revoked"},
+                status=status.HTTP_410_GONE,
+            )
 
         if not certificate.pdf_file:
             return Response(
