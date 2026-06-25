@@ -20,13 +20,14 @@ from drf_spectacular.views import (
   SpectacularRedocView,
 )
 
-from apps.core.views import health_check
+from apps.core.views import health_check, readiness_check
 from apps.payments.views import StripeWebhookView
 
 urlpatterns = [
    
-    # Health Check
+    # Health Check (liveness) + Readiness (DB/cache)
     path('api/health/', health_check, name='health-check'),
+    path('api/health/ready/', readiness_check, name='health-ready'),
     # Django Admin
     path('admin/', admin.site.urls),
 
