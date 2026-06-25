@@ -77,6 +77,7 @@ from .serializers import (
     _video_stream_url,
 )
 from .signing import sign_video_stream, unsign_video_stream
+from .throttles import UploadRateThrottle
 
 
 class VideoViewSet(viewsets.ModelViewSet):
@@ -153,6 +154,15 @@ class VideoViewSet(viewsets.ModelViewSet):
         if self.action == "list":
             return VideoListSerializer
         return VideoSerializer
+
+    def get_throttles(self):
+        """Throttle video uploads (create) to 10/day per user (#57).
+
+        Other actions keep the global default throttles.
+        """
+        if self.action == "create":
+            return [UploadRateThrottle()]
+        return super().get_throttles()
 
     def get_queryset(self):
         """Scope visible videos by course publication and ownership (#55).
