@@ -202,3 +202,76 @@ class TestStripeWebhookView:
             )
 
         assert response.status_code == 500
+
+    def test_malformed_metadata_returns_200_not_500(self, api_client):
+        """Missing metadata is non-retryable → 200 so Stripe stops (#18).
+
+        A signature-valid event whose metadata can never resolve must not
+        loop as a 500 redelivered for days; it is logged and acknowledged.
+        """
+        course = CourseFactory(price=100.00)
+        event_data = {
+            "id": "evt_no_meta",
+            "type": "payment_intent.succeeded",
+            "data": {
+                "object": {
+                    "id": "pi_no_meta",
+                    "amount": int(course.price * 100),
+                    "currency": "brl",
+                    "metadata": {},  # user_id / course_id missing
+                }
+            },
+        }
+
+        mock_event = MagicMock()
+        mock_event.type = "payment_intent.succeeded"
+        mock_event.data = event_data["data"]
+
+        with patch(
+            "apps.payments.views.StripeService.verify_webhook_signature",
+            return_value=mock_event,
+        ):
+            response = api_client.post(
+                WEBHOOK_URL,
+                data=json.dumps(event_data).encode(),
+                content_type="application/json",
+                HTTP_STRIPE_SIGNATURE="valid_sig",
+            )
+
+        assert response.status_code == 200
+
+    def test_orphaned_event_returns_200_not_500(self, api_client):
+        """Event for a deleted user/course is non-retryable → 200 (#18)."""
+        course = CourseFactory(price=100.00)
+        event_data = {
+            "id": "evt_orphan",
+            "type": "payment_intent.succeeded",
+            "data": {
+                "object": {
+                    "id": "pi_orphan",
+                    "amount": int(course.price * 100),
+                    "currency": "brl",
+                    "metadata": {
+                        "user_id": "999999",  # no such user
+                        "course_id": str(course.id),
+                    },
+                }
+            },
+        }
+
+        mock_event = MagicMock()
+        mock_event.type = "payment_intent.succeeded"
+        mock_event.data = event_data["data"]
+
+        with patch(
+            "apps.payments.views.StripeService.verify_webhook_signature",
+            return_value=mock_event,
+        ):
+            response = api_client.post(
+                WEBHOOK_URL,
+                data=json.dumps(event_data).encode(),
+                content_type="application/json",
+                HTTP_STRIPE_SIGNATURE="valid_sig",
+            )
+
+        assert response.status_code == 200

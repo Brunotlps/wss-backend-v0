@@ -27,7 +27,7 @@ from apps.enrollments.models import Enrollment
 from .models import Payment
 from .permissions import IsPaymentOwner
 from .serializers import PaymentIntentRequestSerializer, PaymentSerializer
-from .services import StripeService
+from .services import NonRetryableWebhookError, StripeService
 from .throttles import PaymentIntentRateThrottle
 
 logger = logging.getLogger(__name__)
@@ -185,8 +185,24 @@ class StripeWebhookView(APIView):
                     enrollment.course_id,
                 )
             except ValueError as exc:
+                # Idempotent duplicate (#13) — already processed. Ack with 200
+                # so Stripe stops retrying.
                 logger.info("Duplicate webhook ignored: %s", exc)
+            except NonRetryableWebhookError as exc:
+                # Permanently un-processable (malformed/orphaned) event (#18).
+                # Log at ERROR for alerting, but return 200 so Stripe stops
+                # redelivering it for days — a retry can never recover.
+                logger.error(
+                    "Non-retryable webhook dropped: payment_intent=%s, "
+                    "user_id=%s, course_id=%s, error=%s",
+                    pi_id,
+                    metadata.get("user_id", "N/A"),
+                    metadata.get("course_id", "N/A"),
+                    exc,
+                )
             except Exception as exc:
+                # Transient failure (e.g. DB error) — return 500 so Stripe
+                # retries the delivery.
                 logger.error(
                     "Error processing payment: payment_intent=%s, "
                     "user_id=%s, course_id=%s, error=%s",
