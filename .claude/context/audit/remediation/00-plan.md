@@ -51,21 +51,24 @@ Phase 3 — Hardening & hygiene
 4. **Create-serializer / mass-assignment pattern** (#30/#39/#40) — same fix shape across apps.
 5. **Idempotent webhook/task writes** (`get_or_create` + `IntegrityError`) — #12/#28/#79.
 
-## Status & interleaved production bugs (updated 2026-06-19)
+## Status (updated 2026-06-25)
 
 - **Phase 0 + Phase 1 (all 16 Blocking): done, merged, deployed to prod 2026-06-18** (PRs #102–#109).
-- **Production-discovered bugs (milestone #2 "Production Stabilization", NOT in the 81 audit
-  findings)** — found via manual testing after the deploy:
-  - **#110** (Blocking, `app:infra`) — Celery worker never runs (`entrypoint.sh` ignores the
-    container `command`; the `celery`/`celery-beat` services run gunicorn). Async tasks (cert PDF,
-    any video processing) are never consumed. **Do this BEFORE Phase 2.** Not a `/fix-issue`-shaped
-    code slice — it's infra (`entrypoint.sh`/`docker-compose.yml`) + a deploy + reprocessing stuck
-    certs. See memory `infra_celery_entrypoint_bug` and the executive summary.
-  - **#111** (Major, `app:videos`) — `Video.duration` never extracted (player shows 0:00); folds
-    into Phase 2 (may depend on #110 if extraction is async).
-  - **#112** (Major, `app:videos`) — intermittent playback / Range over the signed X-Accel stream;
-    folds into Phase 2.
-- **Revised order:** **#110 → Phase 2 (Major)** with #111/#112 interleaved by app/layer.
+- **Milestone #2 "Production Stabilization" (prod bugs, NOT audit findings): COMPLETE & validated**
+  — #110 (Celery worker ran gunicorn → fixed, PR #113; **worker now runs in prod**), #111 (video
+  duration via ffprobe, PR #115), #112 (streaming anon throttle → `video_stream` scope, PR #120),
+  #114 (nginx stale upstream IP, mitigated, PR #119), #116 (cert download CORS → FileResponse, PR #117).
+- **Phase 2 (Major) — IN PROGRESS:**
+  - **models + serializers layers: DONE** (2026-06-22) — #68, #65/#66/#67 (migration `courses/0004`),
+    #46, #31; #45 closed as documented product decision.
+  - **views/throttling layer (`05`): DONE** (2026-06-23~25) — #64 (PR #128), #69 (PR #130), #15
+    (PR #132), #81 (PR #134), #57 (PR #137), #88 (PR #139). All merged, deployed, validated in prod.
+  - **NEXT: services/signals/tasks layer (`06`)** — payments webhooks #13/#14/#16/#18/#27/#23
+    (**prod-live Stripe**), OAuth #43/#44/#47, certificates #78/#79/#80. Then **Phase 3** (`07-tests`
+    + `08-lint-style`, plus videos #60).
+- **Open follow-ups:** #136 (`PaymentIntentRateThrottle` scope defect), #122 (module serializer
+  authz→403), #38 (cert `on_delete`), #78 (task retry vs final-failure), legacy OAuth email
+  case-duplicates.
 
 ## Working agreement (per project rules)
 
