@@ -9,6 +9,7 @@ from django.db import IntegrityError
 import pytest
 
 from apps.courses.factories import CourseFactory
+from apps.enrollments.factories import EnrollmentFactory
 from apps.enrollments.models import Enrollment
 from apps.payments.factories import PaymentFactory
 from apps.payments.models import Payment
@@ -525,3 +526,122 @@ class TestStripeServiceHandlePaymentFailed:
         payment = Payment.objects.get(stripe_payment_intent_id="pi_fail_succeeded")
         assert payment.status == Payment.Status.SUCCEEDED
         assert any("after success" in r.getMessage().lower() for r in caplog.records)
+
+
+@pytest.mark.django_db
+class TestStripeServiceHandleRefund:
+    """Tests for StripeService.handle_refund (#16, 16b)."""
+
+    def _charge(self, pi_id, amount=10000, amount_refunded=None, refunded=True):
+        """Helper: build a Stripe-like charge.refunded event data dict."""
+        return {
+            "object": {
+                "id": "ch_test",
+                "payment_intent": pi_id,
+                "amount": amount,
+                "amount_refunded": (
+                    amount_refunded if amount_refunded is not None else amount
+                ),
+                "refunded": refunded,
+                "currency": "brl",
+            }
+        }
+
+    def test_full_refund_marks_refunded_and_revokes_access(self):
+        """A full refund marks the Payment REFUNDED and deactivates the
+        linked enrollment, revoking paid access while keeping the record (#16).
+        """
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+        payment = PaymentFactory(
+            user=user,
+            course=course,
+            stripe_payment_intent_id="pi_refund",
+        )  # default SUCCEEDED
+        enrollment = EnrollmentFactory(
+            user=user, course=course, payment=payment, is_active=True
+        )
+
+        StripeService.handle_refund(self._charge("pi_refund"))
+
+        payment.refresh_from_db()
+        enrollment.refresh_from_db()
+        assert payment.status == Payment.Status.REFUNDED
+        assert enrollment.is_active is False
+
+    def test_partial_refund_does_not_mark_refunded(self, caplog):
+        """A partial refund is not a full REFUNDED; it warns and keeps the
+        status (and access) intact (#16).
+        """
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+        payment = PaymentFactory(
+            user=user,
+            course=course,
+            stripe_payment_intent_id="pi_partial",
+        )
+
+        with caplog.at_level(logging.WARNING, logger="apps.payments.services"):
+            StripeService.handle_refund(
+                self._charge(
+                    "pi_partial",
+                    amount=10000,
+                    amount_refunded=4000,
+                    refunded=False,
+                )
+            )
+
+        payment.refresh_from_db()
+        assert payment.status == Payment.Status.SUCCEEDED
+        assert any("partial" in r.getMessage().lower() for r in caplog.records)
+
+    def test_refund_is_idempotent_when_already_refunded(self):
+        """A redelivered refund for an already-REFUNDED payment is a no-op."""
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+        PaymentFactory(
+            user=user,
+            course=course,
+            stripe_payment_intent_id="pi_already_refunded",
+            status=Payment.Status.REFUNDED,
+        )
+
+        # Must not raise.
+        StripeService.handle_refund(self._charge("pi_already_refunded"))
+
+        payment = Payment.objects.get(stripe_payment_intent_id="pi_already_refunded")
+        assert payment.status == Payment.Status.REFUNDED
+
+    def test_refund_without_enrollment_still_marks_refunded(self):
+        """A refund for a payment with no linked enrollment still records
+        REFUNDED without error (#16).
+        """
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+        PaymentFactory(
+            user=user,
+            course=course,
+            stripe_payment_intent_id="pi_refund_no_enr",
+        )
+
+        StripeService.handle_refund(self._charge("pi_refund_no_enr"))
+
+        payment = Payment.objects.get(stripe_payment_intent_id="pi_refund_no_enr")
+        assert payment.status == Payment.Status.REFUNDED
+
+    def test_refund_for_unknown_intent_raises_non_retryable(self):
+        """A refund referencing an unknown intent is non-retryable (#18)."""
+        from apps.payments.services import NonRetryableWebhookError
+
+        with pytest.raises(NonRetryableWebhookError):
+            StripeService.handle_refund(self._charge("pi_does_not_exist"))
+
+    def test_refund_without_payment_intent_raises_non_retryable(self):
+        """A charge with no payment_intent reference is non-retryable (#18)."""
+        from apps.payments.services import NonRetryableWebhookError
+
+        charge = self._charge("pi_irrelevant")
+        charge["object"]["payment_intent"] = None
+
+        with pytest.raises(NonRetryableWebhookError):
+            StripeService.handle_refund(charge)
