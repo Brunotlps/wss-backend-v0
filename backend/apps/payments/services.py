@@ -43,6 +43,7 @@ class StripeService:
         verify_webhook_signature: Validate incoming Stripe webhook payload.
         handle_payment_success: Transition a payment to SUCCEEDED + enroll.
         handle_payment_failed: Record a failed payment in the audit trail.
+        handle_refund: Mark a payment REFUNDED and revoke access.
     """
 
     @staticmethod
@@ -428,4 +429,89 @@ class StripeService:
             payment.amount = context["amount"]
             payment.currency = context["currency"]
             payment.save(update_fields=["status", "amount", "currency", "updated_at"])
+        return payment
+
+    @staticmethod
+    @transaction.atomic
+    def handle_refund(event_data: Dict[str, Any]) -> Any:
+        """
+        Handle a charge.refunded webhook event (#16, 16b).
+
+        Marks the linked Payment REFUNDED and revokes paid access by
+        deactivating the linked enrollment (is_active=False), keeping the
+        record for audit. Only full refunds transition to REFUNDED — a partial
+        refund is logged and left untouched. Idempotent: a redelivered refund
+        for an already-REFUNDED payment is a no-op.
+
+        The event object is a Stripe Charge (not a PaymentIntent); it is linked
+        to our row via ``charge["payment_intent"]``.
+
+        Args:
+            event_data: The ``data`` dict from the Stripe webhook event.
+
+        Returns:
+            The REFUNDED (or unchanged) Payment instance.
+
+        Raises:
+            NonRetryableWebhookError: If the charge has no payment_intent or it
+                references an unknown intent (caller should ack with 200).
+        """
+        # Import inside method to avoid circular imports
+        from apps.enrollments.models import Enrollment
+
+        from .models import Payment
+
+        charge = event_data["object"]
+        payment_intent_id = charge.get("payment_intent")
+        if not payment_intent_id:
+            raise NonRetryableWebhookError(
+                "Refund event has no payment_intent reference"
+            )
+
+        try:
+            payment = Payment.objects.select_for_update().get(
+                stripe_payment_intent_id=payment_intent_id
+            )
+        except Payment.DoesNotExist as exc:
+            raise NonRetryableWebhookError(
+                f"Refund for unknown intent {payment_intent_id}"
+            ) from exc
+
+        # Only a full refund maps to REFUNDED; a partial refund leaves the
+        # payment (and access) intact and is flagged for ops review. Stripe
+        # only sets charge.refunded=True on a FULL refund, so we gate strictly
+        # on that bool — a partial refund (or a structurally empty charge) is
+        # never treated as a full REFUNDED.
+        if not charge.get("refunded", False):
+            amount = charge.get("amount") or 0
+            amount_refunded = charge.get("amount_refunded") or 0
+            logger.warning(
+                "Non-full refund for intent %s (%s/%s); not marking REFUNDED",
+                payment_intent_id,
+                amount_refunded,
+                amount,
+            )
+            return payment
+
+        if payment.status == Payment.Status.REFUNDED:
+            return payment  # idempotent redelivery
+
+        payment.status = Payment.Status.REFUNDED
+        payment.save(update_fields=["status", "updated_at"])
+
+        # Revoke paid access: deactivate the linked enrollment (keep the row).
+        try:
+            enrollment = payment.enrollment
+        except Enrollment.DoesNotExist:
+            enrollment = None
+        if enrollment is not None and enrollment.is_active:
+            enrollment.is_active = False
+            enrollment.save(update_fields=["is_active", "updated_at"])
+            logger.warning(
+                "Access revoked: enrollment %s deactivated after refund of "
+                "intent %s",
+                enrollment.id,
+                payment_intent_id,
+            )
+
         return payment

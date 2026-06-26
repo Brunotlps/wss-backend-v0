@@ -134,6 +134,7 @@ class StripeWebhookView(APIView):
     Handles:
         payment_intent.succeeded      → transitions Payment to SUCCEEDED + enrolls
         payment_intent.payment_failed → records a FAILED Payment (audit trail)
+        charge.refunded               → marks Payment REFUNDED + revokes access
 
     Security:
         - No Django authentication (Stripe cannot log in as a user)
@@ -176,6 +177,8 @@ class StripeWebhookView(APIView):
             status_code = self._process_succeeded(event, pi_id, metadata)
         elif event.type == "payment_intent.payment_failed":
             status_code = self._process_failed(event, pi_id, metadata)
+        elif event.type == "charge.refunded":
+            status_code = self._process_refund(event, pi_id)
         else:
             status_code = 200
 
@@ -254,6 +257,38 @@ class StripeWebhookView(APIView):
             logger.error(
                 "Error recording failed payment: payment_intent=%s, error=%s",
                 pi_id,
+                exc,
+                exc_info=True,
+            )
+            return 500
+        return 200
+
+    def _process_refund(self, event, charge_id) -> int:
+        """Process charge.refunded; return the HTTP status (#16).
+
+        Marks the Payment REFUNDED and revokes access. Non-retryable events
+        (no/unknown payment_intent) ack with 200; only transient failures 500.
+        """
+        try:
+            payment = StripeService.handle_refund(event.data)
+            logger.warning(
+                "Refund processed: charge=%s, payment_id=%s, status=%s",
+                charge_id,
+                payment.id,
+                payment.status,
+            )
+        except NonRetryableWebhookError as exc:
+            # No/unknown payment_intent (#18) — log ERROR, ack with 200.
+            logger.error(
+                "Non-retryable refund dropped: charge=%s, error=%s",
+                charge_id,
+                exc,
+            )
+        except Exception as exc:
+            # Transient failure — 500 so Stripe retries.
+            logger.error(
+                "Error processing refund: charge=%s, error=%s",
+                charge_id,
                 exc,
                 exc_info=True,
             )

@@ -246,6 +246,145 @@ class TestStripeWebhookView:
 
         assert response.status_code == 500
 
+    def test_charge_refunded_event_marks_refunded(self, api_client):
+        """charge.refunded marks the Payment REFUNDED and returns 200 (#16)."""
+        from apps.payments.factories import PaymentFactory
+        from apps.payments.models import Payment
+
+        payment = PaymentFactory(stripe_payment_intent_id="pi_refund_evt")
+
+        event_data = {
+            "id": "evt_refund",
+            "type": "charge.refunded",
+            "data": {
+                "object": {
+                    "id": "ch_refund_evt",
+                    "payment_intent": "pi_refund_evt",
+                    "amount": 10000,
+                    "amount_refunded": 10000,
+                    "refunded": True,
+                    "currency": "brl",
+                }
+            },
+        }
+
+        mock_event = MagicMock()
+        mock_event.type = "charge.refunded"
+        mock_event.data = event_data["data"]
+
+        with patch(
+            "apps.payments.views.StripeService.verify_webhook_signature",
+            return_value=mock_event,
+        ):
+            response = api_client.post(
+                WEBHOOK_URL,
+                data=json.dumps(event_data).encode(),
+                content_type="application/json",
+                HTTP_STRIPE_SIGNATURE="valid_sig",
+            )
+
+        assert response.status_code == 200
+        payment.refresh_from_db()
+        assert payment.status == Payment.Status.REFUNDED
+
+    def test_failed_event_malformed_metadata_returns_200(self, api_client):
+        """A failed event with unresolvable metadata is non-retryable → 200."""
+        course = CourseFactory(price=100.00)
+        event_data = {
+            "id": "evt_failed_no_meta",
+            "type": "payment_intent.payment_failed",
+            "data": {
+                "object": {
+                    "id": "pi_failed_no_meta",
+                    "amount": int(course.price * 100),
+                    "currency": "brl",
+                    "metadata": {},  # user_id / course_id missing
+                }
+            },
+        }
+
+        mock_event = MagicMock()
+        mock_event.type = "payment_intent.payment_failed"
+        mock_event.data = event_data["data"]
+
+        with patch(
+            "apps.payments.views.StripeService.verify_webhook_signature",
+            return_value=mock_event,
+        ):
+            response = api_client.post(
+                WEBHOOK_URL,
+                data=json.dumps(event_data).encode(),
+                content_type="application/json",
+                HTTP_STRIPE_SIGNATURE="valid_sig",
+            )
+
+        assert response.status_code == 200
+
+    def test_charge_refunded_unknown_intent_returns_200(self, api_client):
+        """A refund for an unknown intent is non-retryable → 200 (#18)."""
+        event_data = {
+            "id": "evt_refund_unknown",
+            "type": "charge.refunded",
+            "data": {
+                "object": {
+                    "id": "ch_unknown",
+                    "payment_intent": "pi_never_seen",
+                    "amount": 10000,
+                    "amount_refunded": 10000,
+                    "refunded": True,
+                    "currency": "brl",
+                }
+            },
+        }
+
+        mock_event = MagicMock()
+        mock_event.type = "charge.refunded"
+        mock_event.data = event_data["data"]
+
+        with patch(
+            "apps.payments.views.StripeService.verify_webhook_signature",
+            return_value=mock_event,
+        ):
+            response = api_client.post(
+                WEBHOOK_URL,
+                data=json.dumps(event_data).encode(),
+                content_type="application/json",
+                HTTP_STRIPE_SIGNATURE="valid_sig",
+            )
+
+        assert response.status_code == 200
+
+    def test_charge_refunded_transient_error_returns_500(self, api_client):
+        """A transient error processing a refund returns 500 (#16/#18)."""
+        event_data = {
+            "id": "evt_refund_err",
+            "type": "charge.refunded",
+            "data": {"object": {"id": "ch_err", "payment_intent": "pi_err"}},
+        }
+
+        mock_event = MagicMock()
+        mock_event.type = "charge.refunded"
+        mock_event.data = event_data["data"]
+
+        with (
+            patch(
+                "apps.payments.views.StripeService.verify_webhook_signature",
+                return_value=mock_event,
+            ),
+            patch(
+                "apps.payments.views.StripeService.handle_refund",
+                side_effect=RuntimeError("unexpected db error"),
+            ),
+        ):
+            response = api_client.post(
+                WEBHOOK_URL,
+                data=json.dumps(event_data).encode(),
+                content_type="application/json",
+                HTTP_STRIPE_SIGNATURE="valid_sig",
+            )
+
+        assert response.status_code == 500
+
     def test_malformed_metadata_returns_200_not_500(self, api_client):
         """Missing metadata is non-retryable → 200 so Stripe stops (#18).
 
