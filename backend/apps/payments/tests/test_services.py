@@ -105,6 +105,79 @@ class TestStripeServiceCreatePaymentIntent:
         with pytest.raises(stripe.error.StripeError):
             StripeService.create_payment_intent(user, course)
 
+    @patch("apps.payments.services.stripe.PaymentIntent.create")
+    def test_persists_pending_payment_on_intent_creation(self, mock_create):
+        """Intent creation persists a PENDING Payment row (#16 lifecycle).
+
+        The documented lifecycle (pending -> succeeded | failed) starts here:
+        a row is created at checkout time so failed/abandoned attempts are also
+        part of the financial audit trail, not only successes.
+        """
+        mock_create.return_value = MagicMock(
+            id="pi_pending_001",
+            client_secret="secret",
+            amount=10000,
+            currency="brl",
+        )
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+
+        StripeService.create_payment_intent(user, course)
+
+        payment = Payment.objects.get(stripe_payment_intent_id="pi_pending_001")
+        assert payment.status == Payment.Status.PENDING
+        assert payment.user == user
+        assert payment.course == course
+        assert payment.amount == Decimal("100.00")
+
+    @patch("apps.payments.services.stripe.PaymentIntent.create")
+    def test_pending_payment_is_idempotent_on_retry(self, mock_create):
+        """A repeated create-intent (same intent id) does not duplicate the
+        PENDING row (#16) — Stripe returns the same intent via idempotency_key.
+        """
+        mock_create.return_value = MagicMock(
+            id="pi_pending_retry",
+            client_secret="secret",
+            amount=10000,
+            currency="brl",
+        )
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+
+        StripeService.create_payment_intent(user, course)
+        StripeService.create_payment_intent(user, course)
+
+        assert (
+            Payment.objects.filter(stripe_payment_intent_id="pi_pending_retry").count()
+            == 1
+        )
+
+    @patch("apps.payments.services.stripe.PaymentIntent.create")
+    def test_pending_write_failure_does_not_break_checkout(self, mock_create):
+        """A DB failure persisting the PENDING row must not fail checkout (#16).
+
+        The live Stripe intent already exists; the succeeded webhook's
+        fallback-create path recovers the row, so create_intent still returns
+        the client_secret instead of surfacing a 500.
+        """
+        mock_create.return_value = MagicMock(
+            id="pi_pending_dberr",
+            client_secret="secret",
+            amount=10000,
+            currency="brl",
+        )
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+
+        with patch(
+            "apps.payments.models.Payment.objects.get_or_create",
+            side_effect=Exception("db down"),
+        ):
+            result = StripeService.create_payment_intent(user, course)
+
+        assert result["payment_intent_id"] == "pi_pending_dberr"
+        assert result["client_secret"] == "secret"
+
 
 @pytest.mark.django_db
 class TestStripeServiceHandlePaymentSuccess:
@@ -227,6 +300,31 @@ class TestStripeServiceHandlePaymentSuccess:
         assert not Payment.objects.filter(
             stripe_payment_intent_id="pi_atomic_test"
         ).exists()
+
+    def test_success_transitions_pending_payment_to_succeeded(self):
+        """A succeeded webhook transitions the existing PENDING row in place,
+        without creating a duplicate Payment (#16 lifecycle).
+        """
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+        PaymentFactory(
+            pending=True,
+            user=user,
+            course=course,
+            stripe_payment_intent_id="pi_transition",
+            amount=Decimal("100.00"),
+        )
+        event_data = self._make_event_data(user, course, pi_id="pi_transition")
+
+        enrollment = StripeService.handle_payment_success(event_data)
+
+        payment = Payment.objects.get(stripe_payment_intent_id="pi_transition")
+        assert payment.status == Payment.Status.SUCCEEDED
+        assert (
+            Payment.objects.filter(stripe_payment_intent_id="pi_transition").count()
+            == 1
+        )
+        assert enrollment.payment_id == payment.id
 
     def test_toctou_create_collision_raises_value_error_not_integrity(self):
         """Concurrent duplicate delivery is idempotent, never IntegrityError.
@@ -352,3 +450,78 @@ class TestStripeServiceHandlePaymentSuccess:
             StripeService.handle_payment_success(event_data)
 
         assert any("currency" in r.getMessage().lower() for r in caplog.records)
+
+
+@pytest.mark.django_db
+class TestStripeServiceHandlePaymentFailed:
+    """Tests for StripeService.handle_payment_failed (#16)."""
+
+    def _event(self, user, course, pi_id, amount=None):
+        """Helper: build a Stripe-like payment_failed event data dict."""
+        return {
+            "object": {
+                "id": pi_id,
+                "amount": amount or int(course.price * 100),
+                "currency": "brl",
+                "metadata": {
+                    "user_id": str(user.id),
+                    "course_id": str(course.id),
+                },
+            }
+        }
+
+    def test_persists_failed_payment_when_no_row_exists(self):
+        """A failed event with no prior row records a FAILED Payment (#16)."""
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+
+        StripeService.handle_payment_failed(self._event(user, course, "pi_fail_new"))
+
+        payment = Payment.objects.get(stripe_payment_intent_id="pi_fail_new")
+        assert payment.status == Payment.Status.FAILED
+        assert payment.amount == Decimal("100.00")
+        assert payment.user == user
+        assert payment.course == course
+
+    def test_transitions_pending_to_failed(self):
+        """A failed event transitions the PENDING row in place (#16)."""
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+        PaymentFactory(
+            pending=True,
+            user=user,
+            course=course,
+            stripe_payment_intent_id="pi_fail_pending",
+        )
+
+        StripeService.handle_payment_failed(
+            self._event(user, course, "pi_fail_pending")
+        )
+
+        payment = Payment.objects.get(stripe_payment_intent_id="pi_fail_pending")
+        assert payment.status == Payment.Status.FAILED
+        assert (
+            Payment.objects.filter(stripe_payment_intent_id="pi_fail_pending").count()
+            == 1
+        )
+
+    def test_does_not_downgrade_succeeded_payment(self, caplog):
+        """A failed event after a captured success never downgrades the audit
+        trail; it logs a warning and leaves the row SUCCEEDED (#16).
+        """
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+        PaymentFactory(
+            user=user,
+            course=course,
+            stripe_payment_intent_id="pi_fail_succeeded",
+        )  # default status is SUCCEEDED
+
+        with caplog.at_level(logging.WARNING, logger="apps.payments.services"):
+            StripeService.handle_payment_failed(
+                self._event(user, course, "pi_fail_succeeded")
+            )
+
+        payment = Payment.objects.get(stripe_payment_intent_id="pi_fail_succeeded")
+        assert payment.status == Payment.Status.SUCCEEDED
+        assert any("after success" in r.getMessage().lower() for r in caplog.records)

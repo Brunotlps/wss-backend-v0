@@ -41,7 +41,8 @@ class StripeService:
     Methods:
         create_payment_intent: Create a Stripe PaymentIntent for a course purchase.
         verify_webhook_signature: Validate incoming Stripe webhook payload.
-        handle_payment_success: Process a succeeded payment and create enrollment.
+        handle_payment_success: Transition a payment to SUCCEEDED + enroll.
+        handle_payment_failed: Record a failed payment in the audit trail.
     """
 
     @staticmethod
@@ -101,6 +102,34 @@ class StripeService:
                 course.id,
             )
 
+            # Persist a PENDING row now so the documented lifecycle
+            # (pending -> succeeded | failed) starts at checkout time and
+            # abandoned/failed attempts are part of the audit trail (#16).
+            # get_or_create keeps a retry / second tab idempotent — the
+            # deterministic idempotency_key returns the same intent id.
+            # The live intent already exists, so a PENDING-row write failure
+            # must NOT fail the user's checkout: log it and continue — the
+            # succeeded webhook's fallback-create path recovers the row.
+            from .models import Payment
+
+            try:
+                Payment.objects.get_or_create(
+                    stripe_payment_intent_id=intent.id,
+                    defaults={
+                        "user": user,
+                        "course": course,
+                        "amount": Decimal(int(intent.amount)) / 100,
+                        "currency": intent.currency,
+                        "status": Payment.Status.PENDING,
+                    },
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to persist PENDING payment for intent %s: %s",
+                    intent.id,
+                    exc,
+                )
+
             return {
                 "client_secret": intent.client_secret,
                 "payment_intent_id": intent.id,
@@ -141,13 +170,14 @@ class StripeService:
         return event
 
     @staticmethod
-    def _resolve_succeeded_intent(
+    def _resolve_intent_context(
         payment_intent: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Validate a succeeded PaymentIntent payload and resolve its refs.
+        """Validate a PaymentIntent event payload and resolve its references.
 
-        Parses the metadata, loads the referenced user/course and computes the
-        exact Decimal amount. Structurally unusable or orphaned events raise
+        Shared by the succeeded and failed handlers. Parses the metadata,
+        loads the referenced user/course and computes the exact Decimal
+        amount. Structurally unusable or orphaned events raise
         NonRetryableWebhookError so the caller can acknowledge them with 200
         instead of looping on retries (#18).
 
@@ -231,8 +261,10 @@ class StripeService:
         """
         Handle a payment_intent.succeeded webhook event.
 
-        Creates a Payment record (status=succeeded) and a linked Enrollment.
-        Uses atomic transaction so both records are committed together.
+        Transitions the PaymentIntent's row to SUCCEEDED (created PENDING at
+        intent-creation time — #16) and creates a linked Enrollment. Falls back
+        to creating the row if no PENDING one exists. Uses an atomic
+        transaction so both records are committed together.
 
         Args:
             event_data: The ``data`` dict from the Stripe webhook event
@@ -256,28 +288,46 @@ class StripeService:
 
         # Validate + resolve the event (raises NonRetryableWebhookError for
         # malformed/orphaned events — #18) and compute the exact amount (#14).
-        context = StripeService._resolve_succeeded_intent(payment_intent)
+        context = StripeService._resolve_intent_context(payment_intent)
         user = context["user"]
         course = context["course"]
         payment_intent_id = context["payment_intent_id"]
 
-        # Race-safe idempotency (#13): insert directly and let the unique
-        # constraint on stripe_payment_intent_id arbitrate. A concurrent or
-        # repeated delivery (or an already-processed intent) collides on the
-        # constraint; we convert that to the idempotent ValueError instead of
-        # letting IntegrityError bubble into a spurious 500 that Stripe
-        # retries. The check-then-create TOCTOU window is removed entirely.
+        # Lifecycle transition (#16): the row is created PENDING at intent
+        # creation; this webhook transitions it to SUCCEEDED. select_for_update
+        # locks the row so concurrent/duplicate deliveries serialise and the
+        # "already SUCCEEDED?" idempotency check is race-safe (#13).
         try:
-            payment = Payment.objects.create(
-                user=user,
-                course=course,
-                amount=context["amount"],
-                currency=context["currency"],
-                stripe_payment_intent_id=payment_intent_id,
-                status=Payment.Status.SUCCEEDED,
+            payment = Payment.objects.select_for_update().get(
+                stripe_payment_intent_id=payment_intent_id
             )
-        except IntegrityError as exc:
-            raise ValueError(f"Payment {payment_intent_id} already processed") from exc
+        except Payment.DoesNotExist:
+            # No PENDING row (webhook beat the intent-creation commit, or an
+            # out-of-band intent). Create it already SUCCEEDED; a concurrent
+            # create collides on the unique constraint, which we convert to the
+            # idempotent ValueError instead of a spurious 500 (#13).
+            try:
+                payment = Payment.objects.create(
+                    user=user,
+                    course=course,
+                    amount=context["amount"],
+                    currency=context["currency"],
+                    stripe_payment_intent_id=payment_intent_id,
+                    status=Payment.Status.SUCCEEDED,
+                )
+            except IntegrityError as exc:
+                raise ValueError(
+                    f"Payment {payment_intent_id} already processed"
+                ) from exc
+        else:
+            if payment.status == Payment.Status.SUCCEEDED:
+                raise ValueError(f"Payment {payment_intent_id} already processed")
+            # Transition PENDING/FAILED -> SUCCEEDED, recording the captured
+            # amount/currency from the event.
+            payment.status = Payment.Status.SUCCEEDED
+            payment.amount = context["amount"]
+            payment.currency = context["currency"]
+            payment.save(update_fields=["status", "amount", "currency", "updated_at"])
 
         # Create enrollment
         enrollment, created = Enrollment.objects.get_or_create(
@@ -316,3 +366,66 @@ class StripeService:
         )
 
         return enrollment
+
+    @staticmethod
+    @transaction.atomic
+    def handle_payment_failed(event_data: Dict[str, Any]) -> Any:
+        """
+        Handle a payment_intent.payment_failed webhook event (#16).
+
+        Persists the failure as part of the financial audit trail: transitions
+        the PENDING row to FAILED, or records a FAILED row if none exists yet.
+        Never downgrades an already-SUCCEEDED payment (a failed event after a
+        captured success is logged and ignored). No Enrollment is created.
+
+        Args:
+            event_data: The ``data`` dict from the Stripe webhook event.
+
+        Returns:
+            The FAILED (or unchanged SUCCEEDED) Payment instance.
+
+        Raises:
+            NonRetryableWebhookError: If the event is malformed or references a
+                user/course that no longer exists (caller should ack with 200).
+        """
+        # Import inside method to avoid circular imports
+        from .models import Payment
+
+        payment_intent = event_data["object"]
+        context = StripeService._resolve_intent_context(payment_intent)
+        payment_intent_id = context["payment_intent_id"]
+
+        # Race-safe create: a concurrent first delivery is absorbed by
+        # get_or_create's savepoint, so no IntegrityError reaches the caller.
+        payment, created = Payment.objects.get_or_create(
+            stripe_payment_intent_id=payment_intent_id,
+            defaults={
+                "user": context["user"],
+                "course": context["course"],
+                "amount": context["amount"],
+                "currency": context["currency"],
+                "status": Payment.Status.FAILED,
+            },
+        )
+        if created:
+            return payment
+
+        # Lock the existing row so the transition decision is race-safe against
+        # a concurrent succeeded delivery (which also locks the row).
+        payment = Payment.objects.select_for_update().get(
+            stripe_payment_intent_id=payment_intent_id
+        )
+        if payment.status == Payment.Status.SUCCEEDED:
+            # Never downgrade a captured payment — protect the audit trail.
+            logger.warning(
+                "payment_failed received after success for intent %s; ignoring",
+                payment_intent_id,
+            )
+            return payment
+
+        if payment.status != Payment.Status.FAILED:
+            payment.status = Payment.Status.FAILED
+            payment.amount = context["amount"]
+            payment.currency = context["currency"]
+            payment.save(update_fields=["status", "amount", "currency", "updated_at"])
+        return payment

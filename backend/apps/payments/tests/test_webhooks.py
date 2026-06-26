@@ -111,11 +111,19 @@ class TestStripeWebhookView:
         # Must return 200 so Stripe doesn't retry
         assert response.status_code == 200
 
-    def test_payment_failed_event_returns_200(self, api_client):
-        """payment_intent.payment_failed event is handled gracefully."""
+    def test_payment_failed_event_persists_failed_payment(self, api_client):
+        """payment_intent.payment_failed persists a FAILED Payment (#16).
+
+        The failure must be part of the financial audit trail, not only a log
+        line, and the endpoint still returns 200.
+        """
+        from apps.payments.models import Payment
+
         user = UserFactory()
         course = CourseFactory(price=100.00)
-        event_data = _make_event("payment_intent.payment_failed", user, course)
+        event_data = _make_event(
+            "payment_intent.payment_failed", user, course, pi_id="pi_failed_evt"
+        )
 
         mock_event = MagicMock()
         mock_event.type = "payment_intent.payment_failed"
@@ -133,6 +141,8 @@ class TestStripeWebhookView:
             )
 
         assert response.status_code == 200
+        payment = Payment.objects.get(stripe_payment_intent_id="pi_failed_evt")
+        assert payment.status == Payment.Status.FAILED
 
     def test_unknown_event_type_returns_200(self, api_client):
         """Unrecognised event types are silently ignored (returns 200)."""
@@ -191,6 +201,39 @@ class TestStripeWebhookView:
             ),
             patch(
                 "apps.payments.views.StripeService.handle_payment_success",
+                side_effect=RuntimeError("unexpected db error"),
+            ),
+        ):
+            response = api_client.post(
+                WEBHOOK_URL,
+                data=json.dumps(event_data).encode(),
+                content_type="application/json",
+                HTTP_STRIPE_SIGNATURE="valid_sig",
+            )
+
+        assert response.status_code == 500
+
+    def test_failed_event_transient_error_returns_500(self, api_client):
+        """A transient error recording a failed payment returns 500 (#16/#18).
+
+        Mirrors the succeeded path: only transient failures retry; non-retryable
+        ones ack with 200.
+        """
+        user = UserFactory()
+        course = CourseFactory(price=100.00)
+        event_data = _make_event("payment_intent.payment_failed", user, course)
+
+        mock_event = MagicMock()
+        mock_event.type = "payment_intent.payment_failed"
+        mock_event.data = event_data["data"]
+
+        with (
+            patch(
+                "apps.payments.views.StripeService.verify_webhook_signature",
+                return_value=mock_event,
+            ),
+            patch(
+                "apps.payments.views.StripeService.handle_payment_failed",
                 side_effect=RuntimeError("unexpected db error"),
             ),
         ):

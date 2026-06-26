@@ -132,8 +132,8 @@ class StripeWebhookView(APIView):
     POST /api/webhooks/stripe/
 
     Handles:
-        payment_intent.succeeded      → creates Payment + Enrollment records
-        payment_intent.payment_failed → logs the failure
+        payment_intent.succeeded      → transitions Payment to SUCCEEDED + enrolls
+        payment_intent.payment_failed → records a FAILED Payment (audit trail)
 
     Security:
         - No Django authentication (Stripe cannot log in as a user)
@@ -159,7 +159,6 @@ class StripeWebhookView(APIView):
             logger.warning("Webhook signature verification failed")
             return HttpResponse(status=400)
 
-        event_type = event.type
         payment_intent = event.data.get("object", {})
         pi_id = payment_intent.get("id", "unknown")
         metadata = payment_intent.get("metadata", {})
@@ -167,59 +166,96 @@ class StripeWebhookView(APIView):
         logger.info(
             "Webhook received: event=%s, payment_intent=%s, "
             "user_id=%s, course_id=%s",
-            event_type,
+            event.type,
             pi_id,
             metadata.get("user_id", "N/A"),
             metadata.get("course_id", "N/A"),
         )
 
-        if event_type == "payment_intent.succeeded":
-            try:
-                enrollment = StripeService.handle_payment_success(event.data)
-                logger.info(
-                    "Payment processed: payment_intent=%s, "
-                    "enrollment_id=%s, user_id=%s, course_id=%s",
-                    pi_id,
-                    enrollment.id,
-                    enrollment.user_id,
-                    enrollment.course_id,
-                )
-            except ValueError as exc:
-                # Idempotent duplicate (#13) — already processed. Ack with 200
-                # so Stripe stops retrying.
-                logger.info("Duplicate webhook ignored: %s", exc)
-            except NonRetryableWebhookError as exc:
-                # Permanently un-processable (malformed/orphaned) event (#18).
-                # Log at ERROR for alerting, but return 200 so Stripe stops
-                # redelivering it for days — a retry can never recover.
-                logger.error(
-                    "Non-retryable webhook dropped: payment_intent=%s, "
-                    "user_id=%s, course_id=%s, error=%s",
-                    pi_id,
-                    metadata.get("user_id", "N/A"),
-                    metadata.get("course_id", "N/A"),
-                    exc,
-                )
-            except Exception as exc:
-                # Transient failure (e.g. DB error) — return 500 so Stripe
-                # retries the delivery.
-                logger.error(
-                    "Error processing payment: payment_intent=%s, "
-                    "user_id=%s, course_id=%s, error=%s",
-                    pi_id,
-                    metadata.get("user_id", "N/A"),
-                    metadata.get("course_id", "N/A"),
-                    exc,
-                    exc_info=True,
-                )
-                return HttpResponse(status=500)
+        if event.type == "payment_intent.succeeded":
+            status_code = self._process_succeeded(event, pi_id, metadata)
+        elif event.type == "payment_intent.payment_failed":
+            status_code = self._process_failed(event, pi_id, metadata)
+        else:
+            status_code = 200
 
-        elif event_type == "payment_intent.payment_failed":
-            logger.warning(
-                "Payment failed: payment_intent=%s, " "user_id=%s, course_id=%s",
+        return HttpResponse(status=status_code)
+
+    def _process_succeeded(self, event, pi_id, metadata) -> int:
+        """Process payment_intent.succeeded; return the HTTP status to send.
+
+        Maps the handler outcome to a status: idempotent duplicate (#13) and
+        non-retryable malformed/orphaned events (#18) ack with 200; only a
+        transient failure returns 500 so Stripe retries.
+        """
+        try:
+            enrollment = StripeService.handle_payment_success(event.data)
+            logger.info(
+                "Payment processed: payment_intent=%s, "
+                "enrollment_id=%s, user_id=%s, course_id=%s",
+                pi_id,
+                enrollment.id,
+                enrollment.user_id,
+                enrollment.course_id,
+            )
+        except ValueError as exc:
+            # Idempotent duplicate (#13) — already processed.
+            logger.info("Duplicate webhook ignored: %s", exc)
+        except NonRetryableWebhookError as exc:
+            # Malformed/orphaned event (#18) — log ERROR, ack with 200 so
+            # Stripe stops redelivering it for days.
+            logger.error(
+                "Non-retryable webhook dropped: payment_intent=%s, "
+                "user_id=%s, course_id=%s, error=%s",
                 pi_id,
                 metadata.get("user_id", "N/A"),
                 metadata.get("course_id", "N/A"),
+                exc,
             )
+        except Exception as exc:
+            # Transient failure (e.g. DB error) — 500 so Stripe retries.
+            logger.error(
+                "Error processing payment: payment_intent=%s, "
+                "user_id=%s, course_id=%s, error=%s",
+                pi_id,
+                metadata.get("user_id", "N/A"),
+                metadata.get("course_id", "N/A"),
+                exc,
+                exc_info=True,
+            )
+            return 500
+        return 200
 
-        return HttpResponse(status=200)
+    def _process_failed(self, event, pi_id, metadata) -> int:
+        """Process payment_intent.payment_failed; return the HTTP status (#16).
+
+        Persists the failure in the audit trail. Non-retryable events ack with
+        200; only a transient failure returns 500.
+        """
+        try:
+            payment = StripeService.handle_payment_failed(event.data)
+            logger.warning(
+                "Payment failed recorded: payment_intent=%s, payment_id=%s, "
+                "user_id=%s, course_id=%s",
+                pi_id,
+                payment.id,
+                metadata.get("user_id", "N/A"),
+                metadata.get("course_id", "N/A"),
+            )
+        except NonRetryableWebhookError as exc:
+            # Malformed/orphaned event (#18) — log ERROR, ack with 200.
+            logger.error(
+                "Non-retryable payment_failed dropped: payment_intent=%s, error=%s",
+                pi_id,
+                exc,
+            )
+        except Exception as exc:
+            # Transient failure — 500 so Stripe retries.
+            logger.error(
+                "Error recording failed payment: payment_intent=%s, error=%s",
+                pi_id,
+                exc,
+                exc_info=True,
+            )
+            return 500
+        return 200
