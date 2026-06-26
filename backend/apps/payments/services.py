@@ -9,14 +9,25 @@ Classes:
 """
 
 import logging
+from decimal import Decimal
 from typing import Any, Dict
 
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 
 import stripe
 
 logger = logging.getLogger(__name__)
+
+
+class NonRetryableWebhookError(Exception):
+    """A signature-valid webhook event that can never be processed.
+
+    Raised when the payload is structurally unusable (malformed metadata) or
+    references data that no longer exists (deleted user/course). Retrying can
+    never help, so the caller logs at ERROR (for alerting) and returns HTTP
+    200 to stop Stripe from redelivering the event for days (#18).
+    """
 
 
 class StripeService:
@@ -130,6 +141,91 @@ class StripeService:
         return event
 
     @staticmethod
+    def _resolve_succeeded_intent(
+        payment_intent: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Validate a succeeded PaymentIntent payload and resolve its refs.
+
+        Parses the metadata, loads the referenced user/course and computes the
+        exact Decimal amount. Structurally unusable or orphaned events raise
+        NonRetryableWebhookError so the caller can acknowledge them with 200
+        instead of looping on retries (#18).
+
+        Args:
+            payment_intent: The ``object`` dict of the Stripe event.
+
+        Returns:
+            Dict with keys: user, course, payment_intent_id, amount, currency.
+
+        Raises:
+            NonRetryableWebhookError: If metadata is malformed or the
+                referenced user/course no longer exists.
+        """
+        # Import inside method to avoid circular imports
+        from django.contrib.auth import get_user_model
+
+        from apps.courses.models import Course
+
+        User = get_user_model()
+
+        metadata = payment_intent.get("metadata", {})
+
+        # Non-retryable: malformed metadata or missing id (#18). The signature
+        # is valid but the event is structurally unusable, so a retry can
+        # never succeed — surface it distinctly from a transient failure.
+        try:
+            user_id = int(metadata["user_id"])
+            course_id = int(metadata["course_id"])
+            payment_intent_id = payment_intent["id"]
+        except (KeyError, ValueError, TypeError) as exc:
+            raise NonRetryableWebhookError(
+                f"Malformed payment_intent metadata: {exc}"
+            ) from exc
+
+        # Non-retryable: event references a user/course that no longer
+        # exists (orphaned event) — retrying will never resolve it (#18).
+        try:
+            user = User.objects.get(id=user_id)
+            course = Course.objects.get(id=course_id)
+        except (User.DoesNotExist, Course.DoesNotExist) as exc:
+            raise NonRetryableWebhookError(
+                f"Orphaned event {payment_intent_id}: {exc}"
+            ) from exc
+
+        # Exact money: cents → BRL via Decimal, never float (#14). Stripe
+        # sends integer cents; the explicit int() guards against a stray float
+        # ever reintroducing binary imprecision via Decimal(float).
+        amount = Decimal(int(payment_intent["amount"])) / 100
+        currency = payment_intent.get("currency", "brl")
+
+        # Defense-in-depth (#27): the amount is server-controlled at intent
+        # creation, so a divergence from the course price signals an
+        # integration bug or a mid-flight price change. Warn for ops, but
+        # never refuse a charge that has already been captured.
+        if amount != course.price:
+            logger.warning(
+                "Amount mismatch for intent %s: captured %s, course %s price %s",
+                payment_intent_id,
+                amount,
+                course.id,
+                course.price,
+            )
+        if currency.lower() != "brl":
+            logger.warning(
+                "Unexpected currency for intent %s: %s",
+                payment_intent_id,
+                currency,
+            )
+
+        return {
+            "user": user,
+            "course": course,
+            "payment_intent_id": payment_intent_id,
+            "amount": amount,
+            "currency": currency,
+        }
+
+    @staticmethod
     @transaction.atomic
     def handle_payment_success(event_data: Dict[str, Any]) -> Any:
         """
@@ -146,40 +242,42 @@ class StripeService:
             Created Enrollment instance.
 
         Raises:
-            ValueError: If payment was already processed or required data is missing.
+            ValueError: If the payment intent was already processed (idempotent
+                duplicate).
+            NonRetryableWebhookError: If the event is malformed or references a
+                user/course that no longer exists (caller should ack with 200).
         """
         # Import inside method to avoid circular imports
-        from django.contrib.auth import get_user_model
-
-        from apps.courses.models import Course
         from apps.enrollments.models import Enrollment
 
-        User = get_user_model()
         from .models import Payment
 
         payment_intent = event_data["object"]
-        metadata = payment_intent.get("metadata", {})
 
-        user_id = int(metadata["user_id"])
-        course_id = int(metadata["course_id"])
-        payment_intent_id = payment_intent["id"]
+        # Validate + resolve the event (raises NonRetryableWebhookError for
+        # malformed/orphaned events — #18) and compute the exact amount (#14).
+        context = StripeService._resolve_succeeded_intent(payment_intent)
+        user = context["user"]
+        course = context["course"]
+        payment_intent_id = context["payment_intent_id"]
 
-        # Idempotency: skip already-processed intents
-        if Payment.objects.filter(stripe_payment_intent_id=payment_intent_id).exists():
-            raise ValueError(f"Payment {payment_intent_id} already processed")
-
-        user = User.objects.get(id=user_id)
-        course = Course.objects.get(id=course_id)
-
-        # Create payment record
-        payment = Payment.objects.create(
-            user=user,
-            course=course,
-            amount=payment_intent["amount"] / 100,  # Convert cents to BRL
-            currency=payment_intent.get("currency", "brl"),
-            stripe_payment_intent_id=payment_intent_id,
-            status=Payment.Status.SUCCEEDED,
-        )
+        # Race-safe idempotency (#13): insert directly and let the unique
+        # constraint on stripe_payment_intent_id arbitrate. A concurrent or
+        # repeated delivery (or an already-processed intent) collides on the
+        # constraint; we convert that to the idempotent ValueError instead of
+        # letting IntegrityError bubble into a spurious 500 that Stripe
+        # retries. The check-then-create TOCTOU window is removed entirely.
+        try:
+            payment = Payment.objects.create(
+                user=user,
+                course=course,
+                amount=context["amount"],
+                currency=context["currency"],
+                stripe_payment_intent_id=payment_intent_id,
+                status=Payment.Status.SUCCEEDED,
+            )
+        except IntegrityError as exc:
+            raise ValueError(f"Payment {payment_intent_id} already processed") from exc
 
         # Create enrollment
         enrollment, created = Enrollment.objects.get_or_create(

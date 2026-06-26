@@ -1,7 +1,10 @@
 """Tests for StripeService business logic."""
 
 import logging
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
+
+from django.db import IntegrityError
 
 import pytest
 
@@ -147,16 +150,24 @@ class TestStripeServiceHandlePaymentSuccess:
         assert enrollment.payment is not None
         assert enrollment.payment.status == Payment.Status.SUCCEEDED
 
-    def test_amount_converted_from_cents_to_brl(self):
-        """Amount in cents (Stripe) is stored as BRL decimal."""
+    def test_amount_stored_as_exact_decimal(self):
+        """Cents→BRL conversion is exact Decimal arithmetic, never float (#14).
+
+        A float (19990 / 100 == 199.90000000000000568…) would not equal the
+        exact Decimal even though the DB column later quantizes it, which is
+        why the previous ``pytest.approx`` assertion masked the bug.
+        """
         user = UserFactory()
-        course = CourseFactory(price=199.90)
+        course = CourseFactory(price=Decimal("199.90"))
         event_data = self._make_event_data(user, course, pi_id="pi_cents_test")
 
-        StripeService.handle_payment_success(event_data)
+        enrollment = StripeService.handle_payment_success(event_data)
 
+        # In-memory value (before DB quantization) must already be exact.
+        assert isinstance(enrollment.payment.amount, Decimal)
+        assert enrollment.payment.amount == Decimal("199.90")
         payment = Payment.objects.get(stripe_payment_intent_id="pi_cents_test")
-        assert float(payment.amount) == pytest.approx(199.90, rel=1e-2)
+        assert payment.amount == Decimal("199.90")
 
     def test_raises_value_error_for_duplicate_payment_intent(self):
         """Duplicate payment_intent_id raises ValueError (idempotency)."""
@@ -216,3 +227,128 @@ class TestStripeServiceHandlePaymentSuccess:
         assert not Payment.objects.filter(
             stripe_payment_intent_id="pi_atomic_test"
         ).exists()
+
+    def test_toctou_create_collision_raises_value_error_not_integrity(self):
+        """Concurrent duplicate delivery is idempotent, never IntegrityError.
+
+        When a competing delivery wins the race and our INSERT hits the
+        unique constraint, the handler must surface the idempotent ValueError
+        (caught by the view → 200), not let IntegrityError escape into a
+        spurious 500 that makes Stripe retry (#13).
+        """
+        user = UserFactory()
+        course = CourseFactory(price=100.00)
+        event_data = self._make_event_data(user, course, pi_id="pi_toctou")
+
+        with patch(
+            "apps.payments.models.Payment.objects.create",
+            side_effect=IntegrityError("duplicate key value violates unique"),
+        ):
+            with pytest.raises(ValueError, match="already processed"):
+                StripeService.handle_payment_success(event_data)
+
+    def test_missing_metadata_raises_non_retryable(self):
+        """Malformed metadata is non-retryable, not a generic 500 (#18)."""
+        from apps.payments.services import NonRetryableWebhookError
+
+        course = CourseFactory(price=100.00)
+        event_data = {
+            "object": {
+                "id": "pi_no_meta",
+                "amount": 10000,
+                "currency": "brl",
+                "metadata": {"course_id": str(course.id)},  # user_id missing
+            }
+        }
+
+        with pytest.raises(NonRetryableWebhookError):
+            StripeService.handle_payment_success(event_data)
+
+    def test_orphaned_user_raises_non_retryable(self):
+        """Event referencing a deleted user is non-retryable (#18)."""
+        from apps.payments.services import NonRetryableWebhookError
+
+        course = CourseFactory(price=100.00)
+        event_data = {
+            "object": {
+                "id": "pi_orphan_user",
+                "amount": 10000,
+                "currency": "brl",
+                "metadata": {
+                    "user_id": "999999",
+                    "course_id": str(course.id),
+                },
+            }
+        }
+
+        with pytest.raises(NonRetryableWebhookError):
+            StripeService.handle_payment_success(event_data)
+
+    def test_orphaned_course_raises_non_retryable(self):
+        """Event referencing a deleted course is non-retryable (#18)."""
+        from apps.payments.services import NonRetryableWebhookError
+
+        user = UserFactory()
+        event_data = {
+            "object": {
+                "id": "pi_orphan_course",
+                "amount": 10000,
+                "currency": "brl",
+                "metadata": {
+                    "user_id": str(user.id),
+                    "course_id": "999999",
+                },
+            }
+        }
+
+        with pytest.raises(NonRetryableWebhookError):
+            StripeService.handle_payment_success(event_data)
+
+    def test_amount_mismatch_logs_warning_but_records(self, caplog):
+        """Captured amount diverging from course price warns, still records.
+
+        The amount is server-controlled at intent creation, so a divergence
+        signals an integration bug or mid-flight price change. We log a
+        warning for ops but never refuse a charge that already happened (#27).
+        """
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+        event_data = {
+            "object": {
+                "id": "pi_amount_mismatch",
+                "amount": 5000,  # R$50.00, not the course's R$100.00
+                "currency": "brl",
+                "metadata": {
+                    "user_id": str(user.id),
+                    "course_id": str(course.id),
+                },
+            }
+        }
+
+        with caplog.at_level(logging.WARNING, logger="apps.payments.services"):
+            StripeService.handle_payment_success(event_data)
+
+        assert any("mismatch" in r.getMessage().lower() for r in caplog.records)
+        payment = Payment.objects.get(stripe_payment_intent_id="pi_amount_mismatch")
+        assert payment.amount == Decimal("50.00")
+
+    def test_unexpected_currency_logs_warning(self, caplog):
+        """A currency other than BRL warns for ops review (#27)."""
+        user = UserFactory()
+        course = CourseFactory(price=Decimal("100.00"))
+        event_data = {
+            "object": {
+                "id": "pi_currency",
+                "amount": 10000,
+                "currency": "usd",
+                "metadata": {
+                    "user_id": str(user.id),
+                    "course_id": str(course.id),
+                },
+            }
+        }
+
+        with caplog.at_level(logging.WARNING, logger="apps.payments.services"):
+            StripeService.handle_payment_success(event_data)
+
+        assert any("currency" in r.getMessage().lower() for r in caplog.records)
