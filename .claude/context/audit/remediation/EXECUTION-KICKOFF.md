@@ -13,20 +13,29 @@ block below as the first message of a new session.
 > **#116** (cert download CORS → FileResponse, PR #117). Per-fix backlog docs in
 > `.claude/context/backlog/2026-06-2*.md`; details in memory (`project_state`, infra gotchas).
 >
-> **Phase 2 (Major) — IN PROGRESS.** The **models + serializers layers are done, merged, deployed,
-> and validated in prod (2026-06-22)**: #68 (slug collision, PR #125), #65/#66/#67 (courses price /
-> drop serializer authz / publish content-gate, PR #126, migration `courses/0004`), #46 (email
-> normalization end-to-end, PR #123), #31 (progress-create timestamps, PR #124). #45 (registration
-> enumeration) closed as a **documented product decision** (kept message; register throttled 5/day;
-> non-enumeration needs a confirmation flow). Prod smoke = 9/9 (shell script, atomic+rollback). Batch
-> backlog: `.claude/context/backlog/2026-06-22-phase2-models-serializers-*.md`.
+> **Phase 2 (Major) — IN PROGRESS.** **Models + serializers layers done** (2026-06-22): #68 (slug
+> collision, PR #125), #65/#66/#67 (courses price / drop serializer authz / publish content-gate,
+> PR #126, migration `courses/0004`), #46 (email normalization, PR #123), #31 (progress-create
+> timestamps, PR #124). #45 closed as a **documented product decision** (kept message; register
+> throttled 5/day). Batch backlog: `.claude/context/backlog/2026-06-22-phase2-models-serializers-*.md`.
 >
-> **NEXT in Phase 2: the views/throttling layer** (`05-views-throttling.md`): #64, #69, #15,
-> #57/#58/#59, #81, #88 — then services/signals/tasks (`06`, incl. Stripe webhooks #13/#14/#16/#18,
-> prod-live, extra care). Then Phase 3 (Minor: `07-tests` + `08-lint-style`, plus videos #60).
-> Open follow-ups: **#122** (module serializer authz → 403, opened this session), legacy email
-> case-duplicates (OAuth `iexact` `MultipleObjectsReturned`), #38 (cert `on_delete`), #78 (task
-> retry vs final-failure). Start with `/audit-status`.
+> **views/throttling layer ALSO DONE** — all 6 slices merged, deployed, validated in prod
+> (2026-06-23~25): **#64** N+1 annotate counts (PR #128) · **#69** price soft-freeze + audited
+> `adjust-price` action (PR #130) · **#15** payments already-enrolled 400→409 (PR #132) · **#81**
+> certificate revoked download → 410 (PR #134) · **#57** video upload throttle 10/day, dedicated
+> `video_upload` scope (PR #137) · **#88** `/api/health/ready/` DB+cache readiness, graceful 503
+> (PR #139). Per-slice backlog docs `.claude/context/backlog/2026-06-2{3,5}-*.md`. (Note: the
+> Phase-0 throttling items #49/#87/#48 were already closed earlier.)
+>
+> **NEXT in Phase 2: the services/signals/tasks layer** (`06-services-signals-tasks.md`):
+> payments webhooks #13/#14/#16/#18/#27/#23 (**prod-live Stripe, extra care**), OAuth #43/#44/#47,
+> certificates tasks/signals #78/#79/#80. The Celery worker IS running in prod now (#110 fixed,
+> validated) — the `.delay()` paths are real. Then Phase 3 (Minor: `07-tests` + `08-lint-style`,
+> plus videos #60; #08 includes cleaning the pre-existing lint dirt in `config/urls.py`).
+> Open follow-ups: **#136** (`PaymentIntentRateThrottle` shares the global `user` cache bucket —
+> same scope defect fixed in #57), **#122** (module serializer authz → 403), legacy email
+> case-duplicates (OAuth `iexact` `MultipleObjectsReturned`), **#38** (cert `on_delete`), **#78**
+> (task retry vs final-failure). Start with `/audit-status`.
 
 ---
 
