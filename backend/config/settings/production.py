@@ -22,6 +22,7 @@ import os
 import sentry_sdk
 
 from .base import *
+from .validators import require_non_empty
 from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
 from sentry_sdk.integrations.celery import CeleryIntegration
@@ -229,3 +230,22 @@ if env('SENTRY_DSN', default=None):
         send_default_pii=False,
         before_send=filter_sensitive_data,
     )
+
+
+# ==============================================
+# FAIL-FAST: required third-party credentials (#23)
+# ==============================================
+# These default to '' in base.py; in production a missing env var must abort
+# startup with a clear error instead of failing opaquely at request time
+# (Stripe error / signature 400 / OAuth failure). Only the credentials the
+# backend actually consumes are required — STRIPE_PUBLIC_KEY is the publishable
+# key used client-side, so it is intentionally not required here.
+
+require_non_empty(
+    {
+        'STRIPE_SECRET_KEY': STRIPE_SECRET_KEY,
+        'STRIPE_WEBHOOK_SECRET': STRIPE_WEBHOOK_SECRET,
+        'GOOGLE_OAUTH_CLIENT_ID': GOOGLE_OAUTH_CLIENT_ID,
+        'GOOGLE_OAUTH_CLIENT_SECRET': GOOGLE_OAUTH_CLIENT_SECRET,
+    }
+)
