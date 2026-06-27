@@ -11,8 +11,9 @@ class CertificateAdmin(admin.ModelAdmin):
         "course_title",
         "issued_at",
         "is_valid",
+        "pdf_generation_failed_at",
     ]
-    list_filter = ["is_valid", "issued_at"]
+    list_filter = ["is_valid", "issued_at", "pdf_generation_failed_at"]
     search_fields = [
         "certificate_code",
         "enrollment__user__email",
