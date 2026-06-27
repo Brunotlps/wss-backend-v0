@@ -124,6 +124,87 @@ class TestHandleCallbackStateValidation:
             self.service.handle_callback(request, code="any-code", state="some-state")
 
 
+class TestHandleCallbackSessionInvalidation:
+    """State and nonce must be single-use — invalidated after the callback (#44)."""
+
+    def setup_method(self):
+        self.factory = RequestFactory()
+        self.service = GoogleOAuthService()
+
+    def test_validate_state_pops_state_after_success(self):
+        """A validated state is removed from the session (single-use, #44)."""
+        request = self.factory.get("/api/auth/google/callback/")
+        request.session = {"google_oauth_state": "the-state"}
+        self.service._validate_state(request, "the-state")
+        assert "google_oauth_state" not in request.session
+
+    @patch.object(GoogleOAuthService, "_find_or_create_user")
+    @patch.object(GoogleOAuthService, "_validate_id_token")
+    @patch.object(GoogleOAuthService, "_exchange_code")
+    def test_handle_callback_invalidates_state_and_nonce(
+        self, mock_exchange, mock_validate, mock_find
+    ):
+        """After a successful callback, neither state nor nonce can be replayed
+        from the session (#44)."""
+        mock_exchange.return_value = {"id_token": "raw"}
+        mock_validate.return_value = {"sub": "x", "email": "a@b.com"}
+        mock_find.return_value = (UserFactory.build(), False)
+
+        request = self.factory.get("/api/auth/google/callback/")
+        request.session = {
+            "google_oauth_state": "the-state",
+            "google_oauth_nonce": "the-nonce",
+        }
+        self.service.handle_callback(request, code="c", state="the-state")
+
+        assert "google_oauth_state" not in request.session
+        assert "google_oauth_nonce" not in request.session
+
+
+@pytest.mark.django_db
+class TestAccountLinkingSecurity:
+    """Linking Google to a pre-existing local account is audit-logged (#47)."""
+
+    def setup_method(self):
+        self.service = GoogleOAuthService()
+
+    def _claims(self, **overrides):
+        base = {
+            "sub": "google-sub-link-sec",
+            "email": "linksec@gmail.com",
+            "email_verified": True,
+            "name": "Link Sec",
+            "given_name": "Link",
+            "family_name": "Sec",
+        }
+        base.update(overrides)
+        return base
+
+    def test_linking_to_account_with_usable_password_logs_warning(self, caplog):
+        """Linking into a local account that has a usable password emits a
+        security WARNING (#47)."""
+        UserFactory(email="linksec@gmail.com")  # usable password by default
+        with caplog.at_level("WARNING", logger="apps.users.services.google_oauth"):
+            user, created = self.service._find_or_create_user(self._claims())
+
+        assert created is False
+        assert any(
+            record.levelname == "WARNING" and "linksec@gmail.com" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_linking_to_passwordless_account_does_not_warn(self, caplog):
+        """Linking into an OAuth-only account (no usable password) must NOT
+        emit the security warning (#47)."""
+        user = UserFactory(email="linksec@gmail.com")
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+        with caplog.at_level("WARNING", logger="apps.users.services.google_oauth"):
+            self.service._find_or_create_user(self._claims())
+
+        assert not any(record.levelname == "WARNING" for record in caplog.records)
+
+
 # ---------------------------------------------------------------------------
 # Etapa 3 — handle_callback: id_token validation
 # ---------------------------------------------------------------------------

@@ -75,7 +75,9 @@ class GoogleOAuthService:
         """
         self._validate_state(request, state)
 
-        nonce = request.session.get("google_oauth_nonce", "")
+        # Single-use: consume the nonce so a captured callback cannot be
+        # replayed from a still-live session (#44).
+        nonce = request.session.pop("google_oauth_nonce", "")
         tokens = self._exchange_code(code)
         claims = self._validate_id_token(tokens["id_token"], nonce)
         user, created = self._find_or_create_user(claims)
@@ -100,6 +102,10 @@ class GoogleOAuthService:
         session_state = request.session.get("google_oauth_state")
         if not session_state or session_state != state:
             raise ValueError("Invalid or missing OAuth state parameter.")
+
+        # Single-use: consume the state once validated so it cannot be
+        # replayed while the session is still alive (#44).
+        request.session.pop("google_oauth_state", None)
 
     def _exchange_code(self, code: str) -> dict:
         """Exchange the authorization code for tokens via server-to-server POST.
@@ -194,9 +200,20 @@ class GoogleOAuthService:
         except SocialAccount.DoesNotExist:
             pass
 
-        # 2. Existing user with same verified email → link new SocialAccount
+        # 2. Existing user with same verified email → link new SocialAccount.
+        # Google guarantees email ownership (email_verified gate above), so the
+        # takeover risk is low; we audit-log the link when the local account has
+        # a usable password. Extra confirmation is a deliberate deferral (#47).
         try:
             user = User.objects.get(email__iexact=email)
+            if user.has_usable_password():
+                logger.warning(
+                    "Security: Google OAuth linked sub %s to existing local "
+                    "account %s which has a usable password (auto-linked, no "
+                    "extra confirmation).",
+                    uid,
+                    user.email,
+                )
             SocialAccount.objects.create(
                 user=user,
                 provider=SocialAccount.Provider.GOOGLE,
