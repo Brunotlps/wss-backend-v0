@@ -8,7 +8,7 @@ task to avoid blocking the request/response cycle.
 Signal flow:
     Enrollment saved (completed=True)
       -> create_certificate_on_completion
-        -> Certificate.objects.create()
+        -> Certificate.objects.get_or_create()  (lightweight, race-safe)
         -> generate_certificate_pdf_async.delay(certificate.id)
 """
 
@@ -18,7 +18,6 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from apps.certificates.models import Certificate
-from apps.certificates.utils import generate_certificate_code
 from apps.enrollments.models import Enrollment
 
 logger = logging.getLogger(__name__)
@@ -27,6 +26,10 @@ logger = logging.getLogger(__name__)
 @receiver(post_save, sender=Enrollment)
 def create_certificate_on_completion(sender, instance, created, **kwargs):
     """Create a certificate and enqueue PDF generation when enrollment completes.
+
+    The signal stays lightweight: it only persists the certificate row (with a
+    denormalized snapshot) and delegates the heavier work — unique code
+    generation and PDF rendering — to the Celery task (#80).
 
     Args:
         sender: Enrollment model class.
@@ -37,34 +40,33 @@ def create_certificate_on_completion(sender, instance, created, **kwargs):
     if not instance.completed or not instance.completed_at:
         return
 
-    if Certificate.objects.filter(enrollment=instance).exists():
+    # Capture a denormalized snapshot at issue time so the certificate is an
+    # immutable, durable document — later edits/deletes of the source
+    # course/user/enrollment never change it (#77). is_valid is left at its
+    # default (True = not revoked); PDF readiness is tracked separately by
+    # pdf_file (#73). The certificate_code is assigned by the task (#80).
+    user = instance.user
+    instructor = instance.course.instructor
+    certificate, was_created = Certificate.objects.get_or_create(
+        enrollment=instance,
+        defaults={
+            "student_name_snapshot": user.get_full_name() or user.email,
+            "course_title_snapshot": instance.course.title,
+            "instructor_name_snapshot": (
+                (instructor.get_full_name() or instructor.email) if instructor else ""
+            ),
+            "completion_date_snapshot": instance.completed_at,
+        },
+    )
+
+    # get_or_create is race-safe: a concurrent double-save no-ops instead of
+    # raising a raw IntegrityError to the caller (#79).
+    if not was_created:
         logger.debug("Certificate already exists for enrollment %d.", instance.id)
         return
 
-    # is_valid is left at its default (True = not revoked). PDF readiness is
-    # tracked separately by pdf_file, so a certificate is never reported as
-    # "revoked" merely because its PDF has not been generated yet (#73).
-    code = generate_certificate_code()
-
-    # Capture a denormalized snapshot at issue time so the certificate is an
-    # immutable, durable document — later edits/deletes of the source
-    # course/user/enrollment never change it (#77).
-    user = instance.user
-    instructor = instance.course.instructor
-    certificate = Certificate.objects.create(
-        enrollment=instance,
-        certificate_code=code,
-        student_name_snapshot=user.get_full_name() or user.email,
-        course_title_snapshot=instance.course.title,
-        instructor_name_snapshot=(
-            (instructor.get_full_name() or instructor.email) if instructor else ""
-        ),
-        completion_date_snapshot=instance.completed_at,
-    )
-
     logger.info(
-        "Certificate %s created for enrollment %d — queuing PDF generation.",
-        code,
+        "Certificate created for enrollment %d — queuing PDF generation.",
         instance.id,
     )
 

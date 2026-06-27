@@ -8,8 +8,10 @@ import pytest
 
 from apps.certificates.factories import CertificateFactory
 from apps.certificates.models import Certificate
+from apps.certificates.signals import create_certificate_on_completion
 from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory
+from apps.enrollments.models import Enrollment
 from apps.users.factories import InstructorFactory, UserFactory
 
 
@@ -192,3 +194,46 @@ class TestCreateCertificateOnCompletion:
         mock_pdf.assert_not_called()
         assert cert.is_valid is False
         assert bool(cert.pdf_file) is True
+
+
+@pytest.mark.django_db
+class TestSignalStaysLightweight:
+    """Signal delegates heavy work to the task and is race-safe (#79, #80)."""
+
+    def test_signal_creates_row_without_code_in_request_path(self):
+        """Code generation is deferred to the task: the signal creates the row
+        with no certificate_code, keeping the request path lightweight (#80).
+        """
+        enrollment = EnrollmentFactory()
+        with patch(
+            "apps.certificates.tasks.generate_certificate_pdf_async.delay"
+        ) as mock_delay:
+            mock_delay.return_value = None  # task not run yet
+            enrollment.completed = True
+            enrollment.completed_at = timezone.now()
+            enrollment.save()
+
+        cert = Certificate.objects.get(enrollment=enrollment)
+        assert not cert.certificate_code
+        mock_delay.assert_called_once_with(cert.id)
+
+    def test_signal_no_ops_when_certificate_already_exists(self):
+        """Completing an already-certified enrollment no-ops via get_or_create:
+        no duplicate row and no raw IntegrityError to the caller (#79).
+
+        get_or_create absorbs the unique-constraint hit that a check-then-create
+        would surface under a concurrent double-save; a real cross-process race
+        test (threads + Postgres) is deferred.
+        """
+        enrollment = EnrollmentFactory()
+        # A concurrent worker already issued the certificate.
+        CertificateFactory(enrollment=enrollment)
+        enrollment.completed = True
+        enrollment.completed_at = timezone.now()
+
+        # Must not raise even though a certificate already exists.
+        create_certificate_on_completion(
+            sender=Enrollment, instance=enrollment, created=False
+        )
+
+        assert Certificate.objects.filter(enrollment=enrollment).count() == 1

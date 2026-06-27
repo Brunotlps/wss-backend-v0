@@ -56,6 +56,8 @@ class Certificate(TimeStampedModel):
         max_length=24,
         unique=True,
         db_index=True,
+        null=True,
+        blank=True,
         help_text=_("Unique validation code (format: WSS-YYYY-XXXXXXXXXXXX)"),
     )
 
@@ -133,7 +135,8 @@ class Certificate(TimeStampedModel):
         ]
 
     def __str__(self):
-        return f"{self.certificate_code} - {self.enrollment.user.get_full_name()}"
+        code = self.certificate_code or "(pending)"
+        return f"{code} - {self.enrollment.user.get_full_name()}"
 
     @property
     def student_name(self):
