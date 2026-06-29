@@ -315,7 +315,9 @@ class GoogleCallbackView(APIView):
 
     Validates the state parameter, exchanges the authorization code for
     tokens, validates the id_token, finds or creates the local User, then
-    issues a JWT pair and redirects the frontend via URL fragment.
+    issues a short-lived single-use exchange code and redirects the frontend
+    with it in the URL fragment. No JWT is ever placed in the URL (#43); the
+    SPA redeems the code at POST /api/auth/google/exchange/.
 
     Permissions:
         AllowAny — called by Google's redirect, no prior auth.
@@ -328,7 +330,7 @@ class GoogleCallbackView(APIView):
     throttle_classes = [OAuthRateThrottle]
 
     def get(self, request):
-        """Process Google callback and redirect frontend with JWT tokens."""
+        """Process Google callback and redirect frontend with a single-use code."""
         code = request.GET.get("code")
         state = request.GET.get("state")
 
@@ -336,21 +338,18 @@ class GoogleCallbackView(APIView):
             logger.warning("Google callback missing code or state params.")
             return redirect(f"{settings.FRONTEND_URL}/auth/error?reason=missing_params")
 
+        service = GoogleOAuthService()
         try:
-            user = GoogleOAuthService().handle_callback(request, code=code, state=state)
+            user = service.handle_callback(request, code=code, state=state)
         except ValueError as exc:
             logger.warning("Google OAuth callback failed: %s", exc)
             return redirect(f"{settings.FRONTEND_URL}/auth/error?reason=oauth_failed")
 
-        refresh = RefreshToken.for_user(user)
-        access_token = str(refresh.access_token)
-        refresh_token = str(refresh)
+        exchange_code = service.issue_exchange_code(user)
 
-        # Fragment (#) — never sent to the server, not logged by Nginx
-        return redirect(
-            f"{settings.FRONTEND_URL}/auth/callback"
-            f"#access={access_token}&refresh={refresh_token}"
-        )
+        # Single-use code in the fragment (#) — no JWT in the URL (#43). The SPA
+        # redeems it immediately at the exchange endpoint for the token pair.
+        return redirect(f"{settings.FRONTEND_URL}/auth/callback#code={exchange_code}")
 
 
 class GoogleTokenExchangeView(APIView):
@@ -363,10 +362,17 @@ class GoogleTokenExchangeView(APIView):
     Permissions:
         AllowAny — the single-use code itself authenticates the exchange.
 
+    Authentication:
+        None — runs no JWT authentication, so a stale/expired Authorization
+        header attached by the SPA's HTTP client cannot 401 a valid exchange
+        (the global JWTAuthentication would otherwise reject it before the
+        AllowAny permission is reached) (#43).
+
     Endpoints:
         POST /api/auth/google/exchange/
     """
 
+    authentication_classes = []
     permission_classes = [AllowAny]
     throttle_classes = [OAuthRateThrottle]
 
