@@ -95,13 +95,15 @@ class TestGoogleCallbackView:
         assert "error" in response["Location"]
 
     @patch("apps.users.views.GoogleOAuthService")
-    def test_successful_callback_redirects_with_tokens_in_fragment(
+    def test_successful_callback_redirects_with_code_in_fragment(
         self, mock_service_cls, client, google_callback_url
     ):
-        """Successful callback must redirect to frontend with JWT tokens in fragment."""
+        """Successful callback redirects with a single-use code in the fragment,
+        never the JWT tokens themselves (#43)."""
         user = UserFactory()
         mock_service = MagicMock()
         mock_service.handle_callback.return_value = user
+        mock_service.issue_exchange_code.return_value = "single-use-code"
         mock_service_cls.return_value = mock_service
 
         response = client.get(
@@ -109,28 +111,31 @@ class TestGoogleCallbackView:
         )
         assert response.status_code == 302
         location = response["Location"]
-        assert "#" in location
-        assert "access=" in location
-        assert "refresh=" in location
+        assert "#code=single-use-code" in location
+        assert "access=" not in location
+        assert "refresh=" not in location
+        mock_service.issue_exchange_code.assert_called_once_with(user)
 
     @patch("apps.users.views.GoogleOAuthService")
-    def test_successful_callback_does_not_expose_tokens_in_path(
+    def test_successful_callback_puts_no_tokens_in_url(
         self, mock_service_cls, client, google_callback_url
     ):
-        """Tokens must be in the fragment (#), not in the query string (?)."""
+        """No access/refresh token appears anywhere in the redirect URL, and the
+        code lives in the fragment (#), not the query string (#43)."""
         user = UserFactory()
         mock_service = MagicMock()
         mock_service.handle_callback.return_value = user
+        mock_service.issue_exchange_code.return_value = "single-use-code"
         mock_service_cls.return_value = mock_service
 
         response = client.get(
             google_callback_url, {"code": "valid-code", "state": "valid-state"}
         )
         location = response["Location"]
+        assert "access=" not in location
+        assert "refresh=" not in location
         fragment_start = location.index("#") if "#" in location else len(location)
-        query_part = location[:fragment_start]
-        assert "access=" not in query_part
-        assert "refresh=" not in query_part
+        assert "code=" not in location[:fragment_start]
 
     @patch("apps.users.views.GoogleOAuthService")
     def test_successful_callback_redirects_to_frontend_url(
@@ -142,6 +147,7 @@ class TestGoogleCallbackView:
         user = UserFactory()
         mock_service = MagicMock()
         mock_service.handle_callback.return_value = user
+        mock_service.issue_exchange_code.return_value = "single-use-code"
         mock_service_cls.return_value = mock_service
 
         response = client.get(
@@ -204,3 +210,25 @@ class TestGoogleTokenExchangeView:
         """The endpoint is public — the code itself authenticates (#43)."""
         response = client.post(google_exchange_url, {"code": "bogus"}, format="json")
         assert response.status_code != 401
+
+    def test_exchange_ignores_stale_bearer_header(self, client, google_exchange_url):
+        """A stale/expired Authorization header must not 401 the public exchange:
+        it runs no JWT authentication and is authenticated by the code (#43).
+
+        Without this, the SPA's axios interceptor attaching an old token would
+        make the global JWTAuthentication reject a perfectly valid exchange.
+        """
+        from apps.users.services.google_oauth import GoogleOAuthService
+
+        user = UserFactory()
+        code = GoogleOAuthService().issue_exchange_code(user)
+
+        response = client.post(
+            google_exchange_url,
+            {"code": code},
+            format="json",
+            HTTP_AUTHORIZATION="Bearer invalid.stale.token",
+        )
+
+        assert response.status_code == 200
+        assert "access" in response.data
