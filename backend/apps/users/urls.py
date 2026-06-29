@@ -36,6 +36,7 @@ from .views import (
     CustomTokenObtainPairView,
     GoogleCallbackView,
     GoogleLoginView,
+    GoogleTokenExchangeView,
     ProfileViewSet,
     UserRegistrationView,
     UserViewSet,
@@ -53,5 +54,10 @@ urlpatterns = [
     path("auth/token/blacklist/", TokenBlacklistView.as_view(), name="token_blacklist"),
     path("auth/google/", GoogleLoginView.as_view(), name="google-login"),
     path("auth/google/callback/", GoogleCallbackView.as_view(), name="google-callback"),
+    path(
+        "auth/google/exchange/",
+        GoogleTokenExchangeView.as_view(),
+        name="google-token-exchange",
+    ),
     path("", include(router.urls)),
 ]

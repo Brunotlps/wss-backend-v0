@@ -351,3 +351,39 @@ class GoogleCallbackView(APIView):
             f"{settings.FRONTEND_URL}/auth/callback"
             f"#access={access_token}&refresh={refresh_token}"
         )
+
+
+class GoogleTokenExchangeView(APIView):
+    """Exchange a single-use OAuth code for a JWT pair (#43).
+
+    The Google callback hands the browser an opaque, short-lived code instead
+    of the tokens themselves; the SPA immediately POSTs it here to receive the
+    access/refresh pair in the response body — keeping JWTs out of the URL.
+
+    Permissions:
+        AllowAny — the single-use code itself authenticates the exchange.
+
+    Endpoints:
+        POST /api/auth/google/exchange/
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [OAuthRateThrottle]
+
+    def post(self, request):
+        """Redeem the code and return the JWT pair in the body."""
+        code = request.data.get("code")
+        user = GoogleOAuthService().consume_exchange_code(code)
+
+        if user is None:
+            logger.warning("Google token exchange failed: invalid or expired code.")
+            return Response(
+                {"detail": "Invalid or expired authorization code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        refresh = RefreshToken.for_user(user)
+        return Response(
+            {"access": str(refresh.access_token), "refresh": str(refresh)},
+            status=status.HTTP_200_OK,
+        )
