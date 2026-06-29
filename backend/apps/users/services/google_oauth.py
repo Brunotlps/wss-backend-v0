@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from django.conf import settings
+from django.core.cache import cache
 
 import requests as http_requests
 from google.auth.transport import requests as google_requests
@@ -18,6 +19,10 @@ logger = logging.getLogger(__name__)
 _GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 _GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 _SCOPES = "openid email profile"
+
+# Single-use OAuth exchange code (keeps JWTs out of the redirect URL — #43).
+_EXCHANGE_CODE_PREFIX = "oauth:exchange:"
+_EXCHANGE_CODE_TTL_SECONDS = 60
 
 
 class GoogleOAuthService:
@@ -88,6 +93,60 @@ class GoogleOAuthService:
             logger.info("Existing user authenticated via Google OAuth: %s", user.email)
 
         return user
+
+    def issue_exchange_code(self, user: User) -> str:
+        """Issue a short-lived, single-use code mapped to ``user``.
+
+        Stored in the cache (Redis in prod) with a 60s TTL so the OAuth
+        callback can hand the browser an opaque code instead of putting the
+        JWT pair in the redirect URL (#43). Redeemed once via
+        ``consume_exchange_code``.
+
+        Args:
+            user: The authenticated user the code grants tokens for.
+
+        Returns:
+            The opaque authorization code (URL-safe).
+        """
+        code = secrets.token_urlsafe(32)
+        cache.set(
+            f"{_EXCHANGE_CODE_PREFIX}{code}",
+            user.id,
+            timeout=_EXCHANGE_CODE_TTL_SECONDS,
+        )
+        return code
+
+    def consume_exchange_code(self, code: str) -> "User | None":
+        """Redeem a single-use exchange code and return its user.
+
+        Returns the mapped User and invalidates the code, or None if the code
+        is missing, expired, or already used.
+
+        The code is delivered to a single browser tab and maps only to its own
+        user, so the residual get-then-delete window grants tokens solely to
+        that same user (no privilege escalation). A fully atomic GETDEL is not
+        used because the dev/test cache backend (LocMemCache) does not support
+        it (#43).
+
+        Args:
+            code: The opaque code from the redirect fragment.
+
+        Returns:
+            The User instance, or None if the code is invalid.
+        """
+        if not code:
+            return None
+
+        key = f"{_EXCHANGE_CODE_PREFIX}{code}"
+        user_id = cache.get(key)
+        if user_id is None:
+            return None
+
+        cache.delete(key)
+        try:
+            return User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return None
 
     # ------------------------------------------------------------------
     # Private helpers

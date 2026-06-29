@@ -205,6 +205,44 @@ class TestAccountLinkingSecurity:
         assert not any(record.levelname == "WARNING" for record in caplog.records)
 
 
+@pytest.mark.django_db
+class TestExchangeCode:
+    """Single-use, short-lived exchange code that maps to a user (#43, step 1)."""
+
+    def setup_method(self):
+        self.service = GoogleOAuthService()
+
+    def test_issue_then_consume_returns_user(self):
+        """A freshly issued code redeems to the user it was issued for."""
+        user = UserFactory()
+        code = self.service.issue_exchange_code(user)
+        assert isinstance(code, str) and len(code) >= 32
+        assert self.service.consume_exchange_code(code) == user
+
+    def test_consume_is_single_use(self):
+        """A code redeems exactly once; a second redemption returns None (#43)."""
+        user = UserFactory()
+        code = self.service.issue_exchange_code(user)
+        assert self.service.consume_exchange_code(code) == user
+        assert self.service.consume_exchange_code(code) is None
+
+    def test_consume_unknown_code_returns_none(self):
+        """An unknown/expired code returns None (no user)."""
+        assert self.service.consume_exchange_code("does-not-exist") is None
+
+    def test_consume_returns_none_if_user_deleted(self):
+        """A code whose user was deleted after issue redeems to None."""
+        user = UserFactory()
+        code = self.service.issue_exchange_code(user)
+        user.delete()
+        assert self.service.consume_exchange_code(code) is None
+
+    def test_consume_empty_code_returns_none(self):
+        """An empty code returns None without touching the cache."""
+        assert self.service.consume_exchange_code("") is None
+        assert self.service.consume_exchange_code(None) is None
+
+
 # ---------------------------------------------------------------------------
 # Etapa 3 — handle_callback: id_token validation
 # ---------------------------------------------------------------------------
