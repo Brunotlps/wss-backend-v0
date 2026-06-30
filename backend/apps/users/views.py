@@ -334,22 +334,26 @@ class GoogleCallbackView(APIView):
         code = request.GET.get("code")
         state = request.GET.get("state")
 
+        # Strip any trailing slash so the path never becomes //auth/... — a
+        # double slash breaks SPA (vue-router) matching on the frontend (#43).
+        frontend = settings.FRONTEND_URL.rstrip("/")
+
         if not code or not state:
             logger.warning("Google callback missing code or state params.")
-            return redirect(f"{settings.FRONTEND_URL}/auth/error?reason=missing_params")
+            return redirect(f"{frontend}/auth/error?reason=missing_params")
 
         service = GoogleOAuthService()
         try:
             user = service.handle_callback(request, code=code, state=state)
         except ValueError as exc:
             logger.warning("Google OAuth callback failed: %s", exc)
-            return redirect(f"{settings.FRONTEND_URL}/auth/error?reason=oauth_failed")
+            return redirect(f"{frontend}/auth/error?reason=oauth_failed")
 
         exchange_code = service.issue_exchange_code(user)
 
         # Single-use code in the fragment (#) — no JWT in the URL (#43). The SPA
         # redeems it immediately at the exchange endpoint for the token pair.
-        return redirect(f"{settings.FRONTEND_URL}/auth/callback#code={exchange_code}")
+        return redirect(f"{frontend}/auth/callback#code={exchange_code}")
 
 
 class GoogleTokenExchangeView(APIView):
