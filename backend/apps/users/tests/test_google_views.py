@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from django.test import override_settings
 from django.urls import reverse
 
 from rest_framework.test import APIClient
@@ -154,6 +155,35 @@ class TestGoogleCallbackView:
             google_callback_url, {"code": "valid-code", "state": "valid-state"}
         )
         assert response["Location"].startswith(settings.FRONTEND_URL)
+
+    @override_settings(FRONTEND_URL="https://front.example/")
+    @patch("apps.users.views.GoogleOAuthService")
+    def test_success_redirect_strips_trailing_slash(
+        self, mock_service_cls, client, google_callback_url
+    ):
+        """A trailing slash in FRONTEND_URL must not produce a double slash in
+        the redirect (e.g. //auth/callback), which breaks SPA routing (#43)."""
+        user = UserFactory()
+        mock_service = MagicMock()
+        mock_service.handle_callback.return_value = user
+        mock_service.issue_exchange_code.return_value = "thecode"
+        mock_service_cls.return_value = mock_service
+
+        response = client.get(
+            google_callback_url, {"code": "valid-code", "state": "valid-state"}
+        )
+        assert (
+            response["Location"] == "https://front.example/auth/callback#code=thecode"
+        )
+
+    @override_settings(FRONTEND_URL="https://front.example/")
+    def test_error_redirect_strips_trailing_slash(self, client, google_callback_url):
+        """Error redirects must also avoid the double slash (#43)."""
+        response = client.get(google_callback_url, {"state": "only-state"})
+        assert (
+            response["Location"]
+            == "https://front.example/auth/error?reason=missing_params"
+        )
 
 
 # ---------------------------------------------------------------------------
