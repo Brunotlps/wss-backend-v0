@@ -102,6 +102,43 @@ class TestCertificateViewSet:
         response = api_client.get(f"{self.URL}validate/WSS-9999-ZZZZZZ/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    @pytest.mark.parametrize("is_valid", [True, False])
+    def test_validate_by_code_does_not_leak_pii(self, api_client, is_valid):
+        """Public verification exposes no email or internal id (#82).
+
+        Anyone with a code can hit this endpoint, so the payload must stay
+        minimal: validity + code + holder name, never the user's email,
+        primary key, or enrollment id — on both the valid and revoked paths.
+        """
+        cert = CertificateFactory(is_valid=is_valid)
+        response = api_client.get(f"{self.URL}validate/{cert.certificate_code}/")
+        assert response.status_code == status.HTTP_200_OK
+
+        leaky = {"email", "id", "pk", "user", "user_id", "enrollment", "enrollment_id"}
+        assert leaky.isdisjoint(response.data.keys())
+        body = str(response.data)
+        assert cert.enrollment.user.email not in body
+        assert set(response.data.keys()) == {
+            "valid",
+            "message",
+            "certificate_code",
+            "student_name",
+        }
+
+    def test_validate_by_code_pending_pdf_is_still_valid(self, api_client):
+        """A freshly issued, PDF-pending certificate verifies as valid (#73).
+
+        is_valid is the revocation flag only; PDF readiness is tracked
+        separately by pdf_file. A real cert is created with no PDF yet, so
+        verification must not depend on the PDF being present.
+        """
+        cert = CertificateFactory(is_valid=True, pdf_file=None)
+        assert not cert.pdf_file
+
+        response = api_client.get(f"{self.URL}validate/{cert.certificate_code}/")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["valid"] is True
+
     def test_list_certificates_empty_when_no_enrollments(self, auth_client):
         """Authenticated user with no certificates sees empty list."""
         response = auth_client.get(self.URL)
