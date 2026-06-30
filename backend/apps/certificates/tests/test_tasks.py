@@ -4,6 +4,7 @@ Covers code generation moved into the task (#80) and the clean
 retry-vs-final-failure branching with alerting (#78).
 """
 
+import logging
 from unittest.mock import patch
 
 import pytest
@@ -117,3 +118,26 @@ class TestTaskRetryBranching:
         generate_certificate_pdf_async.run(cert.id)
 
         mock_pdf.assert_not_called()
+
+
+@pytest.mark.django_db
+class TestTaskMissingCertificate:
+    """A certificate deleted between enqueue and execution is swallowed."""
+
+    @patch("apps.certificates.tasks.generate_certificate_pdf")
+    def test_missing_certificate_is_swallowed(self, mock_pdf, caplog):
+        """A non-existent id returns cleanly (no exception, no PDF render).
+
+        The signal enqueues by id; if the row is deleted before the worker
+        runs, the task must log and stop instead of crashing the worker.
+        """
+        cert = CertificateFactory(certificate_code="WSS-2026-DELETED001")
+        stale_id = cert.id
+        cert.delete()
+
+        with caplog.at_level(logging.ERROR, logger="apps.certificates.tasks"):
+            result = generate_certificate_pdf_async.run(stale_id)
+
+        assert result is None
+        mock_pdf.assert_not_called()
+        assert any(str(stale_id) in record.getMessage() for record in caplog.records)
