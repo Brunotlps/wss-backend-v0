@@ -1,12 +1,16 @@
 """Tests for StripeService business logic."""
 
+import hashlib
+import hmac
 import logging
+import time
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 from django.db import IntegrityError
 
 import pytest
+import stripe
 
 from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory
@@ -645,3 +649,68 @@ class TestStripeServiceHandleRefund:
 
         with pytest.raises(NonRetryableWebhookError):
             StripeService.handle_refund(charge)
+
+
+def _stripe_signature_header(payload: bytes, secret: str, timestamp: int) -> str:
+    """Build a valid Stripe-Signature header for ``payload`` under ``secret``.
+
+    Mirrors Stripe's scheme: HMAC-SHA256 over ``"{timestamp}.{payload}"`` keyed
+    by the webhook secret, formatted as ``t=<ts>,v1=<hex digest>``.
+    """
+    signed_payload = f"{timestamp}.".encode() + payload
+    digest = hmac.new(secret.encode(), signed_payload, hashlib.sha256).hexdigest()
+    return f"t={timestamp},v1={digest}"
+
+
+class TestVerifyWebhookSignature:
+    """Direct coverage for the security-critical signature path (#17).
+
+    The webhook endpoint tests all mock ``verify_webhook_signature`` away, so
+    nothing asserts that ``stripe.Webhook.construct_event`` is called with the
+    raw body, the Stripe-Signature header, and STRIPE_WEBHOOK_SECRET. These
+    tests patch one level lower (and run a real HMAC round-trip) to lock that in.
+    """
+
+    @patch("apps.payments.services.stripe.Webhook.construct_event")
+    def test_passes_raw_body_signature_and_secret(self, mock_construct, settings):
+        """construct_event receives the raw bytes, the header, and the secret."""
+        settings.STRIPE_WEBHOOK_SECRET = "whsec_unit_secret"
+        sentinel = object()
+        mock_construct.return_value = sentinel
+        payload = b'{"id": "evt_1", "type": "ping"}'
+
+        result = StripeService.verify_webhook_signature(payload, "t=1,v1=abc")
+
+        assert result is sentinel
+        mock_construct.assert_called_once_with(
+            payload, "t=1,v1=abc", "whsec_unit_secret"
+        )
+
+    def test_real_hmac_signature_is_accepted(self, settings):
+        """A genuinely signed payload verifies end-to-end (no mock)."""
+        secret = "whsec_real_hmac_test"
+        settings.STRIPE_WEBHOOK_SECRET = secret
+        payload = b'{"id": "evt_real", "type": "ping"}'
+        header = _stripe_signature_header(payload, secret, int(time.time()))
+
+        event = StripeService.verify_webhook_signature(payload, header)
+
+        assert event["type"] == "ping"
+
+    def test_tampered_signature_is_rejected(self, settings):
+        """A bad v1 digest raises SignatureVerificationError (no silent pass)."""
+        settings.STRIPE_WEBHOOK_SECRET = "whsec_real_hmac_test"
+        payload = b'{"id": "evt_real", "type": "ping"}'
+        header = f"t={int(time.time())},v1=deadbeef"
+
+        with pytest.raises(stripe.error.SignatureVerificationError):
+            StripeService.verify_webhook_signature(payload, header)
+
+    def test_wrong_secret_is_rejected(self, settings):
+        """A signature made with a different secret does not verify."""
+        payload = b'{"id": "evt_real", "type": "ping"}'
+        header = _stripe_signature_header(payload, "whsec_attacker", int(time.time()))
+        settings.STRIPE_WEBHOOK_SECRET = "whsec_real_server_secret"
+
+        with pytest.raises(stripe.error.SignatureVerificationError):
+            StripeService.verify_webhook_signature(payload, header)
