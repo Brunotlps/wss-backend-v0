@@ -62,6 +62,19 @@ class TestUserRegistrationView:
         response = api_client.post(self.URL, payload)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+    def test_register_ignores_is_instructor_flag(self, api_client):
+        """A public registrant cannot self-assign is_instructor (#39, #50).
+
+        The flag is not a serializer field, so the request still succeeds (201)
+        but the created user is a non-instructor — no privilege escalation at
+        the HTTP boundary.
+        """
+        from apps.users.models import User
+
+        response = api_client.post(self.URL, self._payload(is_instructor=True))
+        assert response.status_code == status.HTTP_201_CREATED
+        assert User.objects.get(email="register@test.com").is_instructor is False
+
 
 @pytest.mark.django_db
 class TestTokenView:

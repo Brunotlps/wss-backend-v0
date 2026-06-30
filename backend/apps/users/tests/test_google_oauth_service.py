@@ -1,6 +1,6 @@
 """Tests for GoogleOAuthService — authorization URL and callback handling."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import RequestFactory
 
@@ -8,7 +8,7 @@ import pytest
 
 from apps.users.factories import SocialAccountFactory, UserFactory
 from apps.users.models import SocialAccount, User
-from apps.users.services.google_oauth import GoogleOAuthService
+from apps.users.services.google_oauth import _GOOGLE_TOKEN_URL, GoogleOAuthService
 
 # ---------------------------------------------------------------------------
 # Etapa 2 — get_authorization_url
@@ -160,6 +160,62 @@ class TestHandleCallbackSessionInvalidation:
         assert "google_oauth_state" not in request.session
         assert "google_oauth_nonce" not in request.session
 
+    @patch.object(GoogleOAuthService, "_find_or_create_user")
+    @patch.object(GoogleOAuthService, "_validate_id_token")
+    @patch.object(GoogleOAuthService, "_exchange_code")
+    def test_handle_callback_returns_new_user_and_logs(
+        self, mock_exchange, mock_validate, mock_find, caplog
+    ):
+        """A callback that creates a user returns it and logs the creation."""
+        mock_exchange.return_value = {"id_token": "raw"}
+        mock_validate.return_value = {"sub": "x", "email": "new@b.com"}
+        new_user = UserFactory.build(email="new@b.com")
+        mock_find.return_value = (new_user, True)
+
+        request = self.factory.get("/api/auth/google/callback/")
+        request.session = {
+            "google_oauth_state": "the-state",
+            "google_oauth_nonce": "the-nonce",
+        }
+        with caplog.at_level("INFO", logger="apps.users.services.google_oauth"):
+            result = self.service.handle_callback(request, code="c", state="the-state")
+
+        assert result is new_user
+        assert any(
+            "New user created" in record.getMessage() for record in caplog.records
+        )
+
+
+@pytest.mark.django_db
+class TestExchangeCodeHttp:
+    """Server-to-server token exchange (`_exchange_code`) with mocked HTTP (#50)."""
+
+    def setup_method(self):
+        self.service = GoogleOAuthService()
+
+    @patch("apps.users.services.google_oauth.http_requests.post")
+    def test_exchange_code_returns_token_json_on_success(self, mock_post):
+        """A 2xx response returns the parsed token JSON; POST carries the code."""
+        response = MagicMock(ok=True)
+        response.json.return_value = {"id_token": "the-jwt", "access_token": "at"}
+        mock_post.return_value = response
+
+        result = self.service._exchange_code("auth-code")
+
+        assert result["id_token"] == "the-jwt"
+        args, kwargs = mock_post.call_args
+        assert args[0] == _GOOGLE_TOKEN_URL
+        assert kwargs["data"]["code"] == "auth-code"
+        assert kwargs["data"]["grant_type"] == "authorization_code"
+
+    @patch("apps.users.services.google_oauth.http_requests.post")
+    def test_exchange_code_raises_value_error_on_http_error(self, mock_post):
+        """A non-OK response from Google raises ValueError (exchange failed)."""
+        mock_post.return_value = MagicMock(ok=False, text="invalid_grant")
+
+        with pytest.raises(ValueError, match="exchange"):
+            self.service._exchange_code("bad-code")
+
 
 @pytest.mark.django_db
 class TestAccountLinkingSecurity:
@@ -262,6 +318,27 @@ class TestValidateIdToken:
             self.service._validate_id_token("bad-token", "any-nonce")
 
     @patch("apps.users.services.google_oauth.id_token.verify_oauth2_token")
+    def test_validates_against_our_client_id_and_propagates_aud_error(
+        self, mock_verify
+    ):
+        """We pin the audience to our client_id and do not swallow aud failures.
+
+        ``verify_oauth2_token`` is what enforces the audience: it raises when the
+        token's ``aud`` is not our GOOGLE_OAUTH_CLIENT_ID. This locks in that we
+        (a) pass our client_id as the audience argument and (b) let the resulting
+        error propagate, so a token minted for another app cannot authenticate
+        here (#50).
+        """
+        from django.conf import settings
+
+        mock_verify.side_effect = ValueError("Token has wrong audience")
+        with pytest.raises(ValueError):
+            self.service._validate_id_token("token-for-other-app", "any-nonce")
+
+        # Third positional arg to verify_oauth2_token is the expected audience.
+        assert mock_verify.call_args.args[2] == settings.GOOGLE_OAUTH_CLIENT_ID
+
+    @patch("apps.users.services.google_oauth.id_token.verify_oauth2_token")
     def test_email_not_verified_raises_value_error(self, mock_verify):
         """id_token with email_verified=False must raise ValueError."""
         mock_verify.return_value = {
@@ -360,6 +437,14 @@ class TestFindOrCreateUser:
         assert created is True
         assert User.objects.filter(email="brandnew@gmail.com").exists()
         assert SocialAccount.objects.filter(uid="google-sub-brand-new").exists()
+
+    def test_new_user_username_collision_appends_counter(self):
+        """A taken username (email local-part) gets a numeric suffix on create."""
+        UserFactory(username="dupname")
+        claims = self._claims(sub="google-sub-collide", email="dupname@gmail.com")
+        user, created = self.service._find_or_create_user(claims)
+        assert created is True
+        assert user.username == "dupname1"
 
     def test_new_user_profile_created_via_signal(self):
         """New user created from Google must have a Profile (via post_save signal)."""
