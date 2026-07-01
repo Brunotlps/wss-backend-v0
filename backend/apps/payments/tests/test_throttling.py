@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 from django.core.cache import cache
-from django.urls import reverse
+from django.urls import reverse_lazy
 
 from rest_framework import status
 
@@ -24,7 +24,10 @@ def clear_cache():
 class TestPaymentIntentThrottling:
     """Tests for rate limiting on POST /api/payments/create-intent/."""
 
-    URL = reverse("payment-create-intent")
+    # reverse_lazy defers URL resolution until the value is actually used in a
+    # test, so importing this module during collection no longer forces the
+    # whole URLconf (and every app's views) to import (#26).
+    URL = reverse_lazy("payment-create-intent")
 
     @patch("apps.payments.services.stripe.PaymentIntent.create")
     def test_allows_up_to_10_payment_intents_per_day(self, mock_create, auth_client):
