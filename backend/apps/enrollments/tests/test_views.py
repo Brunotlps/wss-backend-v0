@@ -211,6 +211,49 @@ class TestEnrollmentViewSet:
         )
         assert response.status_code == status.HTTP_200_OK
 
+    def test_enrollment_detail_exposes_next_incomplete_lesson(self, auth_client):
+        """The detail view surfaces the first incomplete lesson as next_lesson."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        lesson = LessonFactory(course=enrollment.course, order=1)
+        response = auth_client.get(f"{self.URL}{enrollment.pk}/")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["next_lesson"] is not None
+        assert response.data["next_lesson"]["id"] == lesson.id
+
+    def test_rating_out_of_range_returns_400(self, auth_client):
+        """A rating above 5 is rejected regardless of completion (field range)."""
+        enrollment = EnrollmentFactory(user=auth_client.user, completed=True)
+        response = auth_client.patch(
+            f"{self.URL}{enrollment.pk}/", {"rating": 6}, format="json"
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_review_without_completed_lesson_returns_400(self, auth_client):
+        """A review requires at least one completed lesson (business rule)."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        response = auth_client.patch(
+            f"{self.URL}{enrollment.pk}/",
+            {"review": "Great course!"},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "review" in response.data
+
+    @patch("apps.certificates.tasks.generate_certificate_pdf_async.delay")
+    def test_review_with_completed_lesson_returns_200(self, mock_delay, auth_client):
+        """A review is accepted once the student has completed a lesson."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        lesson = LessonFactory(course=enrollment.course)
+        LessonProgressFactory(enrollment=enrollment, lesson=lesson, completed=True)
+        response = auth_client.patch(
+            f"{self.URL}{enrollment.pk}/",
+            {"review": "Great course!"},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        enrollment.refresh_from_db()
+        assert enrollment.review == "Great course!"
+
 
 @pytest.mark.django_db
 class TestLessonProgressViewSet:
@@ -302,3 +345,149 @@ class TestLessonProgressViewSet:
             format="json",
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_create_progress_on_other_users_enrollment_returns_400(self, auth_client):
+        """A student cannot record progress against someone else's enrollment."""
+        other_enrollment = EnrollmentFactory()  # belongs to another user
+        lesson = LessonFactory(course=other_enrollment.course)
+        response = auth_client.post(
+            self.URL,
+            {
+                "enrollment_id": other_enrollment.pk,
+                "lesson_id": lesson.pk,
+                "watched_duration": 5,
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "enrollment" in response.data
+
+    def test_create_progress_negative_watched_duration_returns_400(self, auth_client):
+        """A negative watched_duration is rejected (field-level validation)."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        lesson = LessonFactory(course=enrollment.course)
+        response = auth_client.post(
+            self.URL,
+            {
+                "enrollment_id": enrollment.pk,
+                "lesson_id": lesson.pk,
+                "watched_duration": -5,
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_create_progress_watched_exceeds_duration_returns_400(self, auth_client):
+        """watched_duration greater than the lesson duration is rejected."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        lesson = LessonFactory(course=enrollment.course, duration=10)
+        response = auth_client.post(
+            self.URL,
+            {
+                "enrollment_id": enrollment.pk,
+                "lesson_id": lesson.pk,
+                "watched_duration": 11,
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @patch("apps.certificates.tasks.generate_certificate_pdf_async.delay")
+    def test_create_completed_caps_watched_duration_to_lesson_duration(
+        self, mock_delay, auth_client
+    ):
+        """completed=True with a partial watched_duration is capped to the full
+        lesson duration (a completed lesson counts as fully watched)."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        lesson = LessonFactory(course=enrollment.course, duration=10)
+        response = auth_client.post(
+            self.URL,
+            {
+                "enrollment_id": enrollment.pk,
+                "lesson_id": lesson.pk,
+                "completed": True,
+                "watched_duration": 3,
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+        progress = LessonProgress.objects.get(pk=response.data["id"])
+        assert progress.watched_duration == 10
+
+    def test_patch_progress_updates_watched_duration(self, auth_client):
+        """PATCH updates watched_duration (resume) and stamps last_watched_at."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        lesson = LessonFactory(course=enrollment.course, duration=10)
+        progress = LessonProgressFactory(
+            enrollment=enrollment, lesson=lesson, watched_duration=0
+        )
+        response = auth_client.patch(
+            f"{self.URL}{progress.pk}/",
+            {"watched_duration": 6},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        progress.refresh_from_db()
+        assert progress.watched_duration == 6
+        assert progress.last_watched_at is not None
+
+    @patch("apps.certificates.tasks.generate_certificate_pdf_async.delay")
+    def test_patch_progress_complete_sets_timestamp_and_duration(
+        self, mock_delay, auth_client
+    ):
+        """PATCH completed=True stamps completed_at and fills watched_duration."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        lesson = LessonFactory(course=enrollment.course, duration=10)
+        progress = LessonProgressFactory(
+            enrollment=enrollment, lesson=lesson, completed=False, watched_duration=2
+        )
+        response = auth_client.patch(
+            f"{self.URL}{progress.pk}/",
+            {"completed": True},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_200_OK
+        progress.refresh_from_db()
+        assert progress.completed is True
+        assert progress.completed_at is not None
+        assert progress.watched_duration == 10
+
+    def test_patch_progress_watched_exceeds_duration_returns_400(self, auth_client):
+        """PATCH raising watched_duration above the lesson duration is rejected."""
+        enrollment = EnrollmentFactory(user=auth_client.user)
+        lesson = LessonFactory(course=enrollment.course, duration=10)
+        progress = LessonProgressFactory(enrollment=enrollment, lesson=lesson)
+        response = auth_client.patch(
+            f"{self.URL}{progress.pk}/",
+            {"watched_duration": 11},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    @patch("apps.certificates.tasks.generate_certificate_pdf_async.delay")
+    def test_completing_all_lessons_completes_enrollment_and_queues_certificate(
+        self, mock_delay, auth_client
+    ):
+        """Completing every lesson auto-completes the enrollment and enqueues the
+        certificate PDF task (end-to-end, with Celery .delay mocked)."""
+        enrollment = EnrollmentFactory(user=auth_client.user, completed=False)
+        lesson = LessonFactory(course=enrollment.course, duration=10)
+
+        response = auth_client.post(
+            self.URL,
+            {
+                "enrollment_id": enrollment.pk,
+                "lesson_id": lesson.pk,
+                "completed": True,
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_201_CREATED
+
+        enrollment.refresh_from_db()
+        assert enrollment.completed is True
+        mock_delay.assert_called_once()
+
+        # With every lesson done, the enrollment detail exposes no next lesson.
+        detail = auth_client.get(f"/api/enrollments/{enrollment.pk}/")
+        assert detail.data["next_lesson"] is None
