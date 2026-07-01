@@ -51,7 +51,7 @@ Phase 3 — Hardening & hygiene
 4. **Create-serializer / mass-assignment pattern** (#30/#39/#40) — same fix shape across apps.
 5. **Idempotent webhook/task writes** (`get_or_create` + `IntegrityError`) — #12/#28/#79.
 
-## Status (updated 2026-06-29)
+## Status (updated 2026-06-30)
 
 - **Phase 0 + Phase 1 (all 16 Blocking): done, merged, deployed to prod 2026-06-18** (PRs #102–#109).
 - **Milestone #2 "Production Stabilization" (prod bugs, NOT audit findings): COMPLETE & validated**
@@ -69,9 +69,19 @@ Phase 3 — Hardening & hygiene
     code); OAuth #44/#47 (PR #152), #43 in two steps — exchange endpoint (PR #154) + callback
     cut-over (PR #157, `#code=` fragment, exchange runs no JWT auth). **#43 frontend cut-over also
     done** (wss-frontend PR #9 → main → Vercel; live Google login confirmed 2026-06-29).
-- **NEXT: Phase 3 (hardening & hygiene):** `07-tests` (#17 webhook signature, #82 cert task/utils,
-  #34/#35 enrollments, #50 users deny-tests, #86 core, #26/#72) + `08-lint-style` (batch across all
-  apps, includes `config/` dirt) + videos #60 (serializer docstring vs validation).
+- **Phase 3 (hardening & hygiene) — IN PROGRESS:**
+  - **`07-tests`: DONE (100%, 2026-06-30, all test-only, no deploy).** #82 cert task/utils (PR #161),
+    #50 users deny-tests (PR #163), #17 webhook signature (PR #165), #34/#35 enrollments (PR #167),
+    #86 core TimeStampedModel/health (PR #169), #72 courses filter_is_free (PR #171), #26 payments
+    reverse_lazy (PR #173). Each has a slice doc in `.claude/context/backlog/2026-06-30-*.md`.
+  - **`08-lint-style`: IN PROGRESS.** Batch 1 done — #92 config lint + CI now lints `apps/ config/`
+    (PR #175, formatting only, no deploy). **Remaining = Batch 2 (type hints+docstrings) + Batch 3
+    (dead code), one app per PR:** payments #19/#20/#21/#22 · enrollments #36/#37 · users #51/#52/#53 ·
+    videos #61/#63 · courses #70/#71 · certificates #83/#84 · core #89/#90/#91.
+  - **Then videos #60** (serializer docstring vs validation, Minor) closes Phase 3.
+  - ⚠️ Non-style items to handle with care: certificates #85 (error envelope `{"error"}`→`{"detail"}`
+    = frontend contract), core #91 (de-dup hardcoded `version`), users #53 (defensive `id_token` check
+    in `_exchange_code` is logic, not format — keep out of the auto-format commit).
 - **Open follow-ups (GitHub issues):** #155 (`oauth-exchange` throttle scope + Redis observability),
   #151 (Docker healthcheck 301 via SSL redirect), #136 (`PaymentIntentRateThrottle` scope),
   #122 (module serializer authz 400→403), #38 (cert `on_delete`).
