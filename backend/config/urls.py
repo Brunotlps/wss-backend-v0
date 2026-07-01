@@ -10,59 +10,63 @@ This file defines the main URL routing for the Django project, including:
 All API endpoints follow the /api/ prefix convention.
 """
 
-from django.contrib import admin
-from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
+from django.urls import include, path
+
 from drf_spectacular.views import (
-  SpectacularAPIView,
-  SpectacularSwaggerView,
-  SpectacularRedocView,
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
 )
 
 from apps.core.views import health_check, readiness_check
 from apps.payments.views import StripeWebhookView
 
 urlpatterns = [
-   
     # Health Check (liveness) + Readiness (DB/cache)
-    path('api/health/', health_check, name='health-check'),
-    path('api/health/ready/', readiness_check, name='health-ready'),
+    path("api/health/", health_check, name="health-check"),
+    path("api/health/ready/", readiness_check, name="health-ready"),
     # Django Admin
-    path('admin/', admin.site.urls),
-
+    path("admin/", admin.site.urls),
     # API Documentation (Swagger/OpenAPI)
     # API Documentation with drf-spectacular
     # OpenAPI 3.0 schema endpoint - generates the API schema in JSON/YAML format
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     # Swagger UI - interactive API documentation interface
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
     # ReDoc - alternative API documentation interface with a different layout
-    path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),  
-    
+    path("api/redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     # Apps URLs
-    path('api/', include('apps.users.urls')),
-    path('api/', include('apps.courses.urls')),
-    path('api/', include('apps.videos.urls')),  # Includes both /videos/ and /lessons/ routes
-    path('api/', include('apps.enrollments.urls')),
-    path('api/', include('apps.certificates.urls')),
-    path('api/', include('apps.payments.urls')),
-
+    path("api/", include("apps.users.urls")),
+    path("api/", include("apps.courses.urls")),
+    path(
+        "api/", include("apps.videos.urls")
+    ),  # Includes both /videos/ and /lessons/ routes
+    path("api/", include("apps.enrollments.urls")),
+    path("api/", include("apps.certificates.urls")),
+    path("api/", include("apps.payments.urls")),
     # Stripe Webhook (public endpoint — auth via HMAC signature)
-    path('api/webhooks/stripe/', StripeWebhookView.as_view(), name='stripe-webhook'),
+    path("api/webhooks/stripe/", StripeWebhookView.as_view(), name="stripe-webhook"),
 ]
 
 # Django Debug Toolbar (dev only)
 if settings.DEBUG:
     import debug_toolbar
+
     urlpatterns += [
-        path('__debug__/', include(debug_toolbar.urls)),
+        path("__debug__/", include(debug_toolbar.urls)),
     ]
 
 # Serve media and static files during development
 # In production, these should be served by a web server like Nginx or Apache
 if settings.DEBUG:
-  # Serve media files (user-uploaded content like images, videos, etc.)
-  urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-  # Serve static files (CSS, JavaScript, images from the project)
-  urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    # Serve media files (user-uploaded content like images, videos, etc.)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Serve static files (CSS, JavaScript, images from the project)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

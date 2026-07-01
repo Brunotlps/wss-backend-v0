@@ -19,9 +19,9 @@ This file should never be used in production environments.
 """
 
 import sentry_sdk
+from sentry_sdk.integrations.celery import CeleryIntegration
 from sentry_sdk.integrations.django import DjangoIntegration
 from sentry_sdk.integrations.redis import RedisIntegration
-from sentry_sdk.integrations.celery import CeleryIntegration
 
 from .base import *
 
@@ -29,19 +29,19 @@ from .base import *
 DEBUG = True
 
 # Allowed hosts for local development
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'backend', '0.0.0.0']
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "backend", "0.0.0.0"]
 
 
 # Development-specific apps
 INSTALLED_APPS += [
-    'django_extensions',  # Shell Plus, RunScript, etc
-    'debug_toolbar',      # Django Debug Toolbar
+    "django_extensions",  # Shell Plus, RunScript, etc
+    "debug_toolbar",  # Django Debug Toolbar
 ]
 
 
 # Development-specific middleware
 MIDDLEWARE += [
-    'debug_toolbar.middleware.DebugToolbarMiddleware',
+    "debug_toolbar.middleware.DebugToolbarMiddleware",
 ]
 
 
@@ -49,18 +49,19 @@ MIDDLEWARE += [
 # https://django-debug-toolbar.readthedocs.io/en/latest/configuration.html
 
 INTERNAL_IPS = [
-    '127.0.0.1',
-    'localhost',
+    "127.0.0.1",
+    "localhost",
 ]
 
 # Docker support for Debug Toolbar
 import socket
+
 hostname, _, ips = socket.gethostbyname_ex(socket.gethostname())
 INTERNAL_IPS += [ip[: ip.rfind(".")] + ".1" for ip in ips]
 
 
 # Email backend for development (prints to console)
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 
 # CORS - Allow all origins in development
@@ -76,42 +77,42 @@ CELERY_TASK_ALWAYS_EAGER = True
 # running Redis instance. Production uses the shared Redis cache from base.py
 # (see audit issue #97). Tests reset state via the autouse clear_cache fixture.
 CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
     },
 }
 
 
 # Logging Configuration for Development
 LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {
+            "format": "{levelname} {asctime} {module} {message}",
+            "style": "{",
         },
     },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "verbose",
         },
     },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
     },
-    'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
+    "loggers": {
+        "django": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
         },
-        'django.db.backends': {
-            'handlers': ['console'],
-            'level': 'DEBUG',  # Mostra todas as queries SQL
-            'propagate': False,
+        "django.db.backends": {
+            "handlers": ["console"],
+            "level": "DEBUG",  # Mostra todas as queries SQL
+            "propagate": False,
         },
     },
 }
@@ -121,45 +122,46 @@ LOGGING = {
 # SENTRY CONFIGURATION (Development Testing)
 # ==============================================
 
+
 def filter_sensitive_data(event, hint):
     """
     Filter sensitive data before sending events to Sentry.
-    
+
     Removes authentication headers and personal data for LGPD compliance.
-    
+
     Args:
         event (dict): Sentry event containing error information
         hint (dict): Additional context about the event
-    
+
     Returns:
         dict: Filtered event or None to discard the event
     """
-    if 'request' in event:
-        headers = event['request'].get('headers', {})
-        if 'Authorization' in headers:
-            headers['Authorization'] = '[Filtered]'
-    
-    if 'request' in event and 'data' in event['request']:
-        data = event['request']['data']
+    if "request" in event:
+        headers = event["request"].get("headers", {})
+        if "Authorization" in headers:
+            headers["Authorization"] = "[Filtered]"
+
+    if "request" in event and "data" in event["request"]:
+        data = event["request"]["data"]
         if isinstance(data, dict):
-            if 'password' in data:
-                data['password'] = '[Filtered]'
-            if 'token' in data:
-                data['token'] = '[Filtered]'
-    
+            if "password" in data:
+                data["password"] = "[Filtered]"
+            if "token" in data:
+                data["token"] = "[Filtered]"
+
     return event
 
 
-if env('SENTRY_DSN', default=None):
+if env("SENTRY_DSN", default=None):
     sentry_sdk.init(
-        dsn=env('SENTRY_DSN'),
+        dsn=env("SENTRY_DSN"),
         integrations=[
             DjangoIntegration(),
             RedisIntegration(),
             CeleryIntegration(),
         ],
-        environment='development',
-        release=env('RELEASE_VERSION', default='1.0.0-dev'),
+        environment="development",
+        release=env("RELEASE_VERSION", default="1.0.0-dev"),
         traces_sample_rate=1.0,
         send_default_pii=False,
         before_send=filter_sensitive_data,
