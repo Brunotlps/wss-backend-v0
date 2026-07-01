@@ -131,20 +131,23 @@ class TestEnrollmentModel:
         enrollment.delete()
         assert cache.get(cache_key) is None
 
-    # BUG DOCUMENTATION: enrollment has no payment verification
-    def test_enrollment_created_without_payment_verification(self):
-        """
-        BUG: Enrollment can be created for a paid course without payment.
+    def test_model_allows_paid_enrollment_without_payment_by_design(self):
+        """The model is deliberately permissive; the 402 gate lives at the view.
 
-        This test documents the current (incorrect) behavior.
-        Expected future behavior: paid courses should require payment before enrollment.
-        Tracking: see CLAUDE.md > Critical Issue.
+        Payment enforcement is an API-layer concern (``EnrollmentViewSet.create``
+        returns 402 for a priced course without a succeeded Payment — tested in
+        test_views.py). The model itself must stay permissive so the Stripe
+        webhook can create the enrollment via ``get_or_create`` after payment
+        succeeds. This test documents that split (superseded the old
+        "BUG DOCUMENTATION" test that asserted a non-existent bug — #35).
         """
         paid_course = CourseFactory(price=99.90)
         user = UserFactory()
-        # Currently, enrollment is created freely regardless of price
+
+        # No payment involved: the model creates the row without objecting.
         enrollment = EnrollmentFactory(user=user, course=paid_course)
-        assert enrollment.pk is not None  # Bug: should require payment first
+
+        assert enrollment.pk is not None
 
 
 @pytest.mark.django_db
