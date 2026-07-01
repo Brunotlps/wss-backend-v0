@@ -205,6 +205,29 @@ class TestCourseViewSet:
         response = api_client.get(self.URL, {"price_max": "0"})
         assert response.data["count"] == 1
 
+    def test_filter_is_free_true_returns_only_free(self, api_client):
+        """?is_free=true returns only courses priced at 0 (#72)."""
+        free = CourseFactory(price=0, is_published=True)
+        CourseFactory(price=99, is_published=True)
+        response = api_client.get(self.URL, {"is_free": "true"})
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == free.id
+
+    def test_filter_is_free_false_returns_only_paid(self, api_client):
+        """?is_free=false returns only courses priced above 0 (#72)."""
+        CourseFactory(price=0, is_published=True)
+        paid = CourseFactory(price=99, is_published=True)
+        response = api_client.get(self.URL, {"is_free": "false"})
+        assert response.data["count"] == 1
+        assert response.data["results"][0]["id"] == paid.id
+
+    def test_filter_is_free_empty_returns_all(self, api_client):
+        """An empty ?is_free= is a no-op and returns every course (#72)."""
+        CourseFactory(price=0, is_published=True)
+        CourseFactory(price=99, is_published=True)
+        response = api_client.get(self.URL, {"is_free": ""})
+        assert response.data["count"] == 2
+
     def test_lessons_action_returns_course_lessons(self, api_client):
         """GET /api/courses/{id}/lessons/ returns lesson list."""
         course = CourseFactory(is_published=True)
