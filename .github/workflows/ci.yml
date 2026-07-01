@@ -30,15 +30,15 @@ jobs:
 
       - name: flake8
         working-directory: backend
-        run: flake8 apps/
+        run: flake8 apps/ config/
 
       - name: black --check
         working-directory: backend
-        run: black --check apps/
+        run: black --check apps/ config/
 
       - name: isort --check
         working-directory: backend
-        run: isort --check-only apps/
+        run: isort --check-only apps/ config/
 
       # Fails if a model change has no matching migration (drift would break deploy).
       - name: Migrations are up to date
