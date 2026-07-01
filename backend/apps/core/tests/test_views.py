@@ -25,6 +25,19 @@ class TestHealthCheck:
         response = api_client.get(self.URL)
         assert response.data["status"] == "ok"
 
+    def test_health_check_head_returns_200(self, api_client):
+        """The endpoint declares HEAD; a HEAD probe must also return 200."""
+        response = api_client.head(self.URL)
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_health_check_response_shape(self, api_client):
+        """The public liveness contract is status/message/version, nothing else."""
+        response = api_client.get(self.URL)
+        assert set(response.data.keys()) == {"status", "message", "version"}
+        assert response.data["status"] == "ok"
+        assert response.data["message"] == "WSS Backend API is running!"
+        assert isinstance(response.data["version"], str) and response.data["version"]
+
 
 @pytest.mark.django_db
 class TestReadinessCheck:
