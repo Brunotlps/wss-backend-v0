@@ -22,7 +22,14 @@ Permission Rules:
     - Instructors have read-only access to enrollments in their courses
 """
 
+from typing import TYPE_CHECKING
+
 from rest_framework.permissions import SAFE_METHODS, BasePermission
+from rest_framework.request import Request
+from rest_framework.views import APIView
+
+if TYPE_CHECKING:
+    from .models import Enrollment, LessonProgress
 
 
 class IsEnrollmentOwner(BasePermission):
@@ -36,8 +43,9 @@ class IsEnrollmentOwner(BasePermission):
     - Other users are denied access
     """
 
-    def has_object_permission(self, request, view, obj):
-
+    def has_object_permission(
+        self, request: Request, view: APIView, obj: "Enrollment"
+    ) -> bool:
         # Admin/staff have full access
         if request.user.is_staff:
             return True
@@ -64,7 +72,9 @@ class IsEnrolledOrInstructor(BasePermission):
     - Other users are denied access
     """
 
-    def has_object_permission(self, request, view, obj):
+    def has_object_permission(
+        self, request: Request, view: APIView, obj: "LessonProgress"
+    ) -> bool:
         # Admin/staff have full access
         if request.user.is_staff:
             return True

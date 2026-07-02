@@ -16,9 +16,12 @@ Business Rules:
 - Course completion requires all lessons marked as completed
 """
 
+from typing import Optional
+
 from django.contrib.auth import get_user_model
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.models import TimeStampedModel
@@ -133,11 +136,11 @@ class Enrollment(TimeStampedModel):
             models.Index(fields=["completed"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user.get_full_name()} → {self.course.title}"
 
     @property
-    def progress_percentage(self):
+    def progress_percentage(self) -> float:
         """Calculate course completion percentage based on completed lessons."""
         total_lessons = self.course.lessons.count()
         if total_lessons == 0:
@@ -147,14 +150,14 @@ class Enrollment(TimeStampedModel):
         return round((completed_lessons / total_lessons) * 100, 2)
 
     @property
-    def total_watched_duration(self):
+    def total_watched_duration(self) -> int:
         """Return total minutes watched across all lessons."""
         total = self.lesson_progress.aggregate(models.Sum("watched_duration"))[
             "watched_duration__sum"
         ]
         return total or 0
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         """
         Save enrollment and invalidate permission cache.
 
@@ -170,7 +173,7 @@ class Enrollment(TimeStampedModel):
 
         invalidate_enrollment_cache(self.user_id, self.course_id)
 
-    def delete(self, *args, **kwargs):
+    def delete(self, *args, **kwargs) -> None:
         """
         Delete enrollment and invalidate permission cache.
 
@@ -186,15 +189,13 @@ class Enrollment(TimeStampedModel):
         # Clear cache after deletion
         invalidate_enrollment_cache(user_id, course_id)
 
-    def mark_as_completed(self):
+    def mark_as_completed(self) -> None:
         """Mark enrollment as completed and set completion timestamp."""
-        from django.utils import timezone
-
         self.completed = True
         self.completed_at = timezone.now()
         self.save(update_fields=["completed", "completed_at"])
 
-    def get_next_lesson(self):
+    def get_next_lesson(self) -> Optional[Lesson]:
         """
         Return the next lesson to watch (first incomplete lesson).
         Returns None if all lessons are completed.
@@ -286,12 +287,12 @@ class LessonProgress(TimeStampedModel):
             models.Index(fields=["lesson", "completed"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         status = "✓" if self.completed else "○"
         return f"{status} {self.enrollment.user.get_full_name()} - {self.lesson.title}"
 
     @property
-    def progress_percentage(self):
+    def progress_percentage(self) -> float:
         """Calculate progress percentage based on watched duration vs lesson duration."""
         if not self.lesson.duration or self.lesson.duration == 0:
             return 100 if self.completed else 0
@@ -299,24 +300,20 @@ class LessonProgress(TimeStampedModel):
         percentage = (self.watched_duration / self.lesson.duration) * 100
         return min(round(percentage, 2), 100)  # Cap at 100%
 
-    def mark_as_completed(self):
+    def mark_as_completed(self) -> None:
         """Mark lesson as completed and set completion timestamp."""
-        from django.utils import timezone
-
         self.completed = True
         self.completed_at = timezone.now()
         self.watched_duration = self.lesson.duration  # Mark as fully watched
         self.save(update_fields=["completed", "completed_at", "watched_duration"])
 
-    def update_watched_duration(self, minutes):
+    def update_watched_duration(self, minutes: int) -> None:
         """
         Update watched duration and last watched timestamp.
 
         Args:
-            minutes (int): Minutes watched in this session.
+            minutes: Minutes watched in this session.
         """
-        from django.utils import timezone
-
         self.watched_duration = min(
             self.watched_duration + minutes, self.lesson.duration
         )  # Don't exceed lesson duration
