@@ -10,12 +10,19 @@ Classes:
 
 import logging
 from decimal import Decimal
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 from django.conf import settings
 from django.db import IntegrityError, transaction
 
 import stripe
+
+if TYPE_CHECKING:
+    from apps.courses.models import Course
+    from apps.enrollments.models import Enrollment
+    from apps.users.models import User
+
+    from .models import Payment
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +60,8 @@ class StripeService:
 
     @staticmethod
     def create_payment_intent(
-        user: Any,
-        course: Any,
+        user: "User",
+        course: "Course",
     ) -> Dict[str, Any]:
         """
         Create a Stripe PaymentIntent for a course purchase.
@@ -146,7 +153,7 @@ class StripeService:
     def verify_webhook_signature(
         payload: bytes,
         signature: str,
-    ) -> Any:
+    ) -> "stripe.Event":
         """
         Verify the Stripe webhook signature and return the parsed event.
 
@@ -258,7 +265,7 @@ class StripeService:
 
     @staticmethod
     @transaction.atomic
-    def handle_payment_success(event_data: Dict[str, Any]) -> Any:
+    def handle_payment_success(event_data: Dict[str, Any]) -> "Enrollment":
         """
         Handle a payment_intent.succeeded webhook event.
 
@@ -370,7 +377,7 @@ class StripeService:
 
     @staticmethod
     @transaction.atomic
-    def handle_payment_failed(event_data: Dict[str, Any]) -> Any:
+    def handle_payment_failed(event_data: Dict[str, Any]) -> "Payment":
         """
         Handle a payment_intent.payment_failed webhook event (#16).
 
@@ -433,7 +440,7 @@ class StripeService:
 
     @staticmethod
     @transaction.atomic
-    def handle_refund(event_data: Dict[str, Any]) -> Any:
+    def handle_refund(event_data: Dict[str, Any]) -> "Payment":
         """
         Handle a charge.refunded webhook event (#16, 16b).
 

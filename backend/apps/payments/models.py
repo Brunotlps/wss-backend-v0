@@ -106,7 +106,10 @@ class Payment(TimeStampedModel):
         ]
 
     def __str__(self) -> str:
-        return f"Payment {self.id}: {self.user.email} - {self.course.title} ({self.status})"
+        return (
+            f"Payment {self.id}: {self.user.email} - "
+            f"{self.course.title} ({self.status})"
+        )
 
     @property
     def is_succeeded(self) -> bool:
