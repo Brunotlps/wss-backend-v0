@@ -15,6 +15,9 @@ Relationships:
 - Certificate ←→ Enrollment (One-to-One): Each enrollment has one certificate
 """
 
+from datetime import datetime
+from typing import Optional
+
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -134,12 +137,12 @@ class Certificate(TimeStampedModel):
             models.Index(fields=["-issued_at"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         code = self.certificate_code or "(pending)"
         return f"{code} - {self.enrollment.user.get_full_name()}"
 
     @property
-    def student_name(self):
+    def student_name(self) -> str:
         """Issued student name: stored snapshot, else live lookup (#77)."""
         if self.student_name_snapshot:
             return self.student_name_snapshot
@@ -148,7 +151,7 @@ class Certificate(TimeStampedModel):
         return ""
 
     @property
-    def course_title(self):
+    def course_title(self) -> str:
         """Issued course title: stored snapshot, else live lookup (#77)."""
         if self.course_title_snapshot:
             return self.course_title_snapshot
@@ -157,7 +160,7 @@ class Certificate(TimeStampedModel):
         return ""
 
     @property
-    def instructor_name(self):
+    def instructor_name(self) -> str:
         """Issued instructor name: stored snapshot, else live lookup (#77)."""
         if self.instructor_name_snapshot:
             return self.instructor_name_snapshot
@@ -168,7 +171,7 @@ class Certificate(TimeStampedModel):
         return ""
 
     @property
-    def completion_date(self):
+    def completion_date(self) -> Optional[datetime]:
         """Issued completion date: stored snapshot, else live lookup (#77)."""
         if self.completion_date_snapshot:
             return self.completion_date_snapshot

@@ -38,6 +38,7 @@ import os
 import secrets
 import string
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 
@@ -48,6 +49,9 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph
+
+if TYPE_CHECKING:
+    from apps.certificates.models import Certificate
 
 # Palet of colors
 COLOR_BG = HexColor("#0F0F14")
@@ -61,15 +65,14 @@ COLOR_LINE = HexColor("#2D2D3F")
 
 
 # Helpers
-def _pt_date(date_obj):
-    """
-    Format date in Portuguese: DD de mês de YYYY
+def _pt_date(date_obj: datetime) -> str:
+    """Format a date in Portuguese as ``DD de mês de YYYY``.
 
     Args:
-        date_obj: datetime object to format
+        date_obj: Datetime object to format.
 
     Returns:
-        str: Formatted date string
+        Formatted date string.
     """
     months = [
         "",
@@ -90,14 +93,13 @@ def _pt_date(date_obj):
     return f"{date_obj.day:02d} de {months[date_obj.month]} de {date_obj.year}"
 
 
-def _draw_background(canvas_obj, w, h):
-    """
-    Draw dark background with purple ambient glow effect
+def _draw_background(canvas_obj: canvas.Canvas, w: float, h: float) -> None:
+    """Draw the dark background with a purple ambient glow effect.
 
     Args:
-        canvas_obj: ReportLab Canvas object
-        w: Page width in points
-        h: Page height in points
+        canvas_obj: ReportLab Canvas object.
+        w: Page width in points.
+        h: Page height in points.
     """
     canvas_obj.setFillColor(COLOR_BG)
     canvas_obj.rect(0, 0, w, h, fill=1, stroke=0)
@@ -113,14 +115,13 @@ def _draw_background(canvas_obj, w, h):
         canvas_obj.circle(0, h, r, fill=1, stroke=0)
 
 
-def _draw_card(canvas_obj, w, h):
-    """
-    Draw certificate card with shadow, border and top accent line
+def _draw_card(canvas_obj: canvas.Canvas, w: float, h: float) -> None:
+    """Draw the certificate card with shadow, border and top accent line.
 
     Args:
-        canvas_obj: ReportLab Canvas object
-        w: Page width in points
-        h: Page height in points
+        canvas_obj: ReportLab Canvas object.
+        w: Page width in points.
+        h: Page height in points.
     """
     pad_x = 18 * mm
     pad_y = 14 * mm
@@ -151,13 +152,12 @@ def _draw_card(canvas_obj, w, h):
     )
 
 
-def _draw_accent_bar(canvas_obj, h):
-    """
-    Draw vertical accent bar on the left side
+def _draw_accent_bar(canvas_obj: canvas.Canvas, h: float) -> None:
+    """Draw the vertical accent bar on the left side.
 
     Args:
-        canvas_obj: ReportLab Canvas object
-        h: Page height in points
+        canvas_obj: ReportLab Canvas object.
+        h: Page height in points.
     """
     bar_x = 22 * mm
     bar_y = 22 * mm
@@ -169,15 +169,16 @@ def _draw_accent_bar(canvas_obj, h):
     canvas_obj.roundRect(bar_x, bar_y, bar_w, bar_h, radius, fill=1, stroke=0)
 
 
-def _thin_divider(canvas_obj, cx, y, half_w):
-    """
-    Draw horizontal divider line with accent circle in center
+def _thin_divider(
+    canvas_obj: canvas.Canvas, cx: float, y: float, half_w: float
+) -> None:
+    """Draw a horizontal divider line with an accent circle in the center.
 
     Args:
-        canvas_obj: ReportLab Canvas object
-        cx: Center X position
-        y: Y position for the line
-        half_w: Half width of the line from center
+        canvas_obj: ReportLab Canvas object.
+        cx: Center X position.
+        y: Y position for the line.
+        half_w: Half width of the line from center.
     """
     canvas_obj.setStrokeColor(COLOR_LINE)
     canvas_obj.setLineWidth(0.6)
@@ -186,17 +187,23 @@ def _thin_divider(canvas_obj, cx, y, half_w):
     canvas_obj.circle(cx, y, 1.2 * mm, fill=1, stroke=0)
 
 
-def _draw_signature_block(canvas_obj, sig_x, sig_y, sig_w, name, role):
-    """
-    Draw signature block with line, name and role
+def _draw_signature_block(
+    canvas_obj: canvas.Canvas,
+    sig_x: float,
+    sig_y: float,
+    sig_w: float,
+    name: str,
+    role: str,
+) -> None:
+    """Draw a signature block with line, name and role.
 
     Args:
-        canvas_obj: ReportLab Canvas object
-        sig_x: Signature block X position
-        sig_y: Signature block Y position
-        sig_w: Signature block width
-        name: Name to display
-        role: Role/title to display below name
+        canvas_obj: ReportLab Canvas object.
+        sig_x: Signature block X position.
+        sig_y: Signature block Y position.
+        sig_w: Signature block width.
+        name: Name to display.
+        role: Role/title to display below the name.
     """
     center = sig_x + sig_w / 2
     canvas_obj.setStrokeColor(COLOR_LINE)
@@ -217,18 +224,17 @@ def _draw_signature_block(canvas_obj, sig_x, sig_y, sig_w, name, role):
 
 
 # Main method
-def generate_certificate_pdf(certificate):
-    """
-    Generate certificate PDF with ReportLab
+def generate_certificate_pdf(certificate: "Certificate") -> str:
+    """Generate the certificate PDF with ReportLab.
 
     Creates a professional certificate with dark theme, purple accents,
     student information, course details, and validation code.
 
     Args:
-        certificate: Certificate model instance with enrollment relationship
+        certificate: Certificate model instance with enrollment relationship.
 
     Returns:
-        str: Relative path to generated PDF file (relative to MEDIA_ROOT)
+        Relative path to the generated PDF file (relative to MEDIA_ROOT).
 
     Example:
         >>> cert = Certificate.objects.get(id=1)
@@ -366,9 +372,8 @@ def generate_certificate_pdf(certificate):
     return relative_path
 
 
-def generate_certificate_code():
-    """
-    Generate a unique certificate validation code.
+def generate_certificate_code() -> str:
+    """Generate a unique certificate validation code.
 
     Format: WSS-YYYY-XXXXXXXXXXXX
     - WSS: Platform identifier
