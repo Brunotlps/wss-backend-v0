@@ -47,9 +47,10 @@ Database Optimization:
 """
 
 import logging
+from typing import TYPE_CHECKING
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Q, QuerySet
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -58,6 +59,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
 from django_filters.rest_framework import DjangoFilterBackend
+
+if TYPE_CHECKING:
+    from rest_framework.serializers import BaseSerializer
 
 from apps.videos.serializers import LessonListSerializer
 
@@ -208,7 +212,8 @@ class CourseViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at", "price", "title"]
     ordering = ["-created_at"]
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> "type[BaseSerializer]":
+        """Return the serializer class for the current action."""
         if self.action == "list":
             return CourseListSerializer
         elif self.action == "retrieve":
@@ -219,7 +224,7 @@ class CourseViewSet(viewsets.ModelViewSet):
             return CourseUpdateSerializer
         return CourseDetailSerializer
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: "BaseSerializer") -> None:
         """Assign the authenticated instructor as the course owner.
 
         Instructor role is enforced by IsInstructorOrReadOnly (403); this only
@@ -227,7 +232,7 @@ class CourseViewSet(viewsets.ModelViewSet):
         """
         serializer.save(instructor=self.request.user)
 
-    def get_queryset(self):
+    def get_queryset(self) -> "QuerySet[Course]":
         """
         Filter courses based on user authentication status and role permissions.
 

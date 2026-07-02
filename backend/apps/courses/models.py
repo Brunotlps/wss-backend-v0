@@ -110,10 +110,10 @@ class Category(TimeStampedModel):
         verbose_name_plural = _("categories")
         ordering = ["name"]  # Alphabetical order
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.name
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         """Override save to auto-generate a unique slug from name."""
         if not self.slug:
             self.slug = generate_unique_slug(Category, self.name, exclude_pk=self.pk)
@@ -242,10 +242,10 @@ class Course(TimeStampedModel):
             models.Index(fields=["is_published", "-created_at"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.title
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         """Override save to auto-generate a unique slug from title."""
         if not self.slug:
             self.slug = generate_unique_slug(Course, self.title, exclude_pk=self.pk)
@@ -268,11 +268,11 @@ class Course(TimeStampedModel):
             )
 
     @property
-    def is_free(self):
+    def is_free(self) -> bool:
         """Check if course is free."""
         return self.price == 0
 
-    def get_enrolled_count(self):
+    def get_enrolled_count(self) -> int:
         """Return number of students enrolled."""
         return self.enrollments.filter(is_active=True).count()
 

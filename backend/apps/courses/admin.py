@@ -19,6 +19,7 @@ class ModuleInline(admin.TabularInline):
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
+    """Admin configuration for the Category model."""
 
     list_display = ("name", "slug", "is_active", "created_at")
     list_filter = ("is_active", "created_at")
@@ -37,6 +38,7 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
+    """Admin configuration for the Course model."""
 
     list_display = (
         "title",

@@ -91,7 +91,7 @@ class CourseListSerializer(serializers.ModelSerializer):
             "created_at",
         ]
 
-    def get_enrolled_count(self, obj):
+    def get_enrolled_count(self, obj: Course) -> int:
         """Return number of active enrollments.
 
         Prefers the ``annotated_enrolled_count`` annotation set by the viewset
@@ -141,7 +141,7 @@ class CourseDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
-    def get_enrolled_count(self, obj):
+    def get_enrolled_count(self, obj: Course) -> int:
         """Return number of active enrollments.
 
         Prefers the ``annotated_enrolled_count`` annotation set by the viewset
@@ -152,14 +152,14 @@ class CourseDetailSerializer(serializers.ModelSerializer):
             return count
         return obj.enrollments.filter(is_active=True).count()
 
-    def get_is_enrolled(self, obj):
+    def get_is_enrolled(self, obj: Course) -> bool:
         """Check if current user is enrolled in this course."""
         request = self.context.get("request")
         if request and request.user.is_authenticated:
             return obj.enrollments.filter(user=request.user, is_active=True).exists()
         return False
 
-    def get_lessons_count(self, obj):
+    def get_lessons_count(self, obj: Course) -> int:
         """Return total number of lessons in this course.
 
         Prefers the ``annotated_lessons_count`` annotation set by the viewset
@@ -325,7 +325,7 @@ class ModuleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
 
-    def get_lessons_count(self, obj):
+    def get_lessons_count(self, obj: Module) -> int:
         """Return number of lessons inside this module."""
         return obj.lessons.count()
 
@@ -378,7 +378,7 @@ class ModuleWithLessonsSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_lessons(self, obj):
+    def get_lessons(self, obj: Module) -> list:
         """Return ordered lessons for this module using LessonListSerializer."""
         from apps.videos.serializers import LessonListSerializer
 
