@@ -21,12 +21,15 @@ Integration:
     - Integrates with authentication system to enforce user-based data isolation and role-specific queryset filtering.
 """
 
+from typing import TYPE_CHECKING
+
 from django.db import IntegrityError
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 
 from rest_framework import status, viewsets
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 
 from django_filters.rest_framework import DjangoFilterBackend
@@ -41,6 +44,9 @@ from .serializers import (
     EnrollmentUpdateSerializer,
     LessonProgressSerializer,
 )
+
+if TYPE_CHECKING:
+    from rest_framework.serializers import BaseSerializer
 
 
 class EnrollmentViewSet(viewsets.ModelViewSet):
@@ -89,7 +95,8 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
     ordering_fields = ["enrolled_at", "completed_at", "rating"]
     ordering = ["-enrolled_at"]
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> "type[BaseSerializer]":
+        """Return the serializer class for the current action."""
         if self.action == "list":
             return EnrollmentListSerializer
         if self.action == "create":
@@ -98,8 +105,12 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
             return EnrollmentUpdateSerializer
         return EnrollmentDetailSerializer
 
-    def get_queryset(self):
+    def get_queryset(self) -> "QuerySet[Enrollment]":
+        """Scope enrollments to the requesting user's role.
 
+        Staff see all enrollments, instructors see their own plus those in
+        courses they teach, and students see only their own.
+        """
         user = self.request.user
         queryset = self.queryset
 
@@ -111,7 +122,7 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 
         return queryset.filter(user=user)
 
-    def create(self, request, *args, **kwargs):
+    def create(self, request: Request, *args, **kwargs) -> Response:
         """Create enrollment, enforcing uniqueness and payment.
 
         Returns HTTP 409 if the user is already enrolled in the course, or
@@ -159,7 +170,8 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
             headers=headers,
         )
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: "BaseSerializer") -> None:
+        """Persist the enrollment with the requesting user as owner."""
         serializer.save(user=self.request.user)
 
 
@@ -211,8 +223,12 @@ class LessonProgressViewSet(viewsets.ModelViewSet):
 
     serializer_class = LessonProgressSerializer
 
-    def get_queryset(self):
+    def get_queryset(self) -> "QuerySet[LessonProgress]":
+        """Scope lesson progress to the requesting user's role.
 
+        Staff see all progress, instructors see their own plus progress in
+        courses they teach, and students see only their own.
+        """
         user = self.request.user
         queryset = self.queryset
 
