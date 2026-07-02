@@ -11,10 +11,10 @@ Routes:
     GET    /api/users/me/                 → CurrentUserView
     PATCH  /api/users/me/                 → CurrentUserView
     POST   /api/auth/token/               → TokenObtainPairView (Login)
-    POST   /api/auth/token/refresh/       → TokenRefreshView (Renovar)
+    POST   /api/auth/token/refresh/       → TokenRefreshView (Refresh)
     POST   /api/auth/token/blacklist/     → TokenBlacklistView (Logout)
     GET    /api/users/                    → UserViewSet.list
-    POST   /api/users/                    → UserViewSet.register
+    POST   /api/users/                    → UserViewSet.create
     GET    /api/users/{pk}/               → UserViewSet.retrieve
     PUT    /api/users/{pk}/               → UserViewSet.update
     PATCH  /api/users/{pk}/               → UserViewSet.partial_update
