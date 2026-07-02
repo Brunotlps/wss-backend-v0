@@ -9,11 +9,16 @@ This module contains user-related models including:
 The User model is configured as the AUTH_USER_MODEL in settings.py.
 """
 
+from typing import TYPE_CHECKING, Optional
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from apps.core.models import TimeStampedModel
+
+if TYPE_CHECKING:
+    from django.db.models.fields.files import ImageFieldFile
 
 
 class User(AbstractUser, TimeStampedModel):
@@ -69,11 +74,11 @@ class User(AbstractUser, TimeStampedModel):
         verbose_name_plural = _("users")
         ordering = ["-date_joined"]  # Newest users first
 
-    def __str__(self):
+    def __str__(self) -> str:
         """String representation of the user."""
         return self.email or self.username
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         """Normalize the email to lowercase before saving (single source).
 
         Case-insensitive storage prevents duplicate accounts that differ only
@@ -83,7 +88,7 @@ class User(AbstractUser, TimeStampedModel):
             self.email = self.email.lower()
         super().save(*args, **kwargs)
 
-    def get_full_name(self):
+    def get_full_name(self) -> str:
         """
         Return the user's full name (first_name + last_name).
         Falls back to username if names are not set.
@@ -91,17 +96,17 @@ class User(AbstractUser, TimeStampedModel):
         full_name = f"{self.first_name} {self.last_name}".strip()
         return full_name or self.username
 
-    def get_short_name(self):
+    def get_short_name(self) -> str:
         """Return the user's first name or username."""
         return self.first_name or self.username
 
     @property
-    def bio(self):
+    def bio(self) -> str:
         """Shortcut to profile bio."""
         return getattr(self.profile, "bio", "")
 
     @property
-    def avatar(self):
+    def avatar(self) -> Optional["ImageFieldFile"]:
         """Shortcut to profile avatar."""
         return getattr(self.profile, "avatar", None)
 
@@ -180,7 +185,7 @@ class Profile(TimeStampedModel):
         verbose_name = _("profile")
         verbose_name_plural = _("profiles")
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Profile of {self.user.get_full_name()}"
 
 

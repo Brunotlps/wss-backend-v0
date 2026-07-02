@@ -25,7 +25,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     is normalized here to keep authentication working regardless of casing.
     """
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict) -> dict:
         """Lowercase the email before delegating to the default validation."""
         attrs[self.username_field] = attrs.get(self.username_field, "").lower()
         return super().validate(attrs)
@@ -65,7 +65,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             "username": {"required": True},
         }
 
-    def validate_email(self, value):
+    def validate_email(self, value: str) -> str:
         """Normalize email to lowercase and enforce case-insensitive uniqueness.
 
         DRF's auto-generated UniqueValidator already rejects an exact-case
@@ -77,13 +77,14 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("A user with that email already exists.")
         return value
 
-    def validate(self, data):
-
+    def validate(self, data: dict) -> dict:
+        """Ensure the password and its confirmation match."""
         if data["password"] != data["password_confirm"]:
             raise serializers.ValidationError("Password does not match.")
         return data
 
-    def create(self, validated_data):
+    def create(self, validated_data: dict) -> User:
+        """Create the user with a hashed password (drops password_confirm)."""
         validated_data.pop("password_confirm")
         password = validated_data.pop("password")
 
