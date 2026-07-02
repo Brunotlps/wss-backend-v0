@@ -1,8 +1,10 @@
+from django.db.models import QuerySet
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
 
 from .models import Certificate
@@ -26,15 +28,17 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = CertificateSerializer
     permission_classes = [permissions.IsAuthenticated, IsCertificateOwner]
 
-    def get_queryset(self):
-
+    def get_queryset(self) -> "QuerySet[Certificate]":
+        """Return the requesting user's certificates with related data."""
         user = self.request.user
         return Certificate.objects.filter(enrollment__user=user).select_related(
             "enrollment__user", "enrollment__course", "enrollment__course__instructor"
         )
 
     @action(detail=True, methods=["get"])
-    def download(self, request, pk=None):
+    def download(
+        self, request: Request, pk: "str | None" = None
+    ) -> "FileResponse | Response":
         """Serve the certificate PDF directly from Django (#74, #116).
 
         ``get_object()`` enforces ``IsCertificateOwner`` (staff or owner only).
@@ -72,8 +76,8 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
     @action(detail=True, methods=["post"], url_path="validate")
-    def validate_ownership(self, request, pk=None):
-
+    def validate_ownership(self, request: Request, pk: "str | None" = None) -> Response:
+        """Confirm the authenticated owner's certificate (object-permission gated)."""
         certificate = self.get_object()
 
         return Response(
@@ -92,8 +96,8 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
         throttle_classes=[VerifyThrottle],
         url_path="validate/(?P<code>[^/.]+)",
     )
-    def validate_by_code(self, request, code=None):
-
+    def validate_by_code(self, request: Request, code: "str | None" = None) -> Response:
+        """Public certificate validation by code (no PII beyond the holder name)."""
         certificate = get_object_or_404(
             Certificate.objects.select_related("enrollment__user"),
             certificate_code=code,
