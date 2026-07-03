@@ -48,7 +48,7 @@ class User(AbstractUser, TimeStampedModel):
     """
 
     email = models.EmailField(
-        _("email_address"),
+        _("email address"),
         unique=True,
         error_messages={
             "unique": _("A user with that email already exists."),
@@ -63,7 +63,7 @@ class User(AbstractUser, TimeStampedModel):
     )
 
     phone = models.CharField(
-        _("phone_number"),
+        _("phone number"),
         max_length=20,
         blank=True,
         null=True,
