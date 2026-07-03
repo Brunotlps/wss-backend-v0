@@ -41,6 +41,10 @@ class User(AbstractUser, TimeStampedModel):
         - This model must be referenced in settings.py as AUTH_USER_MODEL
         - Multiple inheritance: AbstractUser provides auth functionality,
           TimeStampedModel provides timestamps
+        - ``created_at`` (from TimeStampedModel) overlaps with AbstractUser's
+          ``date_joined``; it is kept intentionally so every model shares the
+          same TimeStampedModel contract (created_at/updated_at), and
+          ``updated_at`` has no AbstractUser equivalent.
     """
 
     email = models.EmailField(

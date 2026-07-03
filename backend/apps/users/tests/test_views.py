@@ -1,5 +1,8 @@
 """Tests for User API views."""
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+
 from rest_framework import status
 
 import pytest
@@ -230,6 +233,25 @@ class TestUserViewSet:
         response = staff_client.get(self.LIST_URL)
         assert response.status_code == status.HTTP_200_OK
         assert response.data["count"] == 4  # 3 created + the staff user itself
+
+    def test_retrieve_does_not_issue_separate_profile_query(self, staff_client):
+        """UserDetailSerializer nests profile; get_queryset select_relates it,
+        so retrieving a user must not emit a standalone users_profile SELECT
+        (regression lock against the N+1 flagged in #53)."""
+        target = UserFactory()
+        with CaptureQueriesContext(connection) as ctx:
+            response = staff_client.get(f"{self.LIST_URL}{target.pk}/")
+        assert response.status_code == status.HTTP_200_OK
+        assert "profile" in response.data
+        standalone_profile_queries = [
+            q["sql"]
+            for q in ctx.captured_queries
+            if 'FROM "users_profile"' in q["sql"] and "JOIN" not in q["sql"]
+        ]
+        assert not standalone_profile_queries, (
+            f"N+1: profile fetched separately, not via select_related: "
+            f"{standalone_profile_queries}"
+        )
 
     def test_update_own_user_returns_200(self, auth_client):
         """User can update their own record."""

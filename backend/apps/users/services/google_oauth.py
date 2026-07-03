@@ -191,7 +191,15 @@ class GoogleOAuthService:
             logger.error("Google token exchange failed: %s", response.text)
             raise ValueError("Failed to exchange authorization code with Google.")
 
-        return response.json()
+        tokens = response.json()
+        # Google can return 200 with a structured error payload (no id_token);
+        # surface the documented ValueError instead of letting the caller hit a
+        # KeyError on tokens["id_token"] that would leak as a 500.
+        if "id_token" not in tokens:
+            logger.error("Google token response missing id_token: %s", tokens)
+            raise ValueError("Google token response did not include an id_token.")
+
+        return tokens
 
     def _validate_id_token(self, raw_id_token: str, nonce: str) -> dict:
         """Validate the Google id_token and return its claims.
