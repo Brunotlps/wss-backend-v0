@@ -2,6 +2,7 @@
 
 import logging
 
+from django.conf import settings
 from django.core.cache import cache
 from django.db import connection
 
@@ -32,7 +33,7 @@ def health_check(request: Request) -> Response:
         {
             "status": "ok",
             "message": "WSS Backend API is running!",
-            "version": "1.0.0",
+            "version": settings.APP_VERSION,
         }
     )
 
