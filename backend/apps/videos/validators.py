@@ -19,6 +19,7 @@ Usage:
 """
 
 from django.core.exceptions import ValidationError
+from django.core.files import File
 from django.core.validators import FileExtensionValidator
 from django.utils.translation import gettext_lazy as _
 
@@ -36,7 +37,7 @@ ALLOWED_VIDEO_MIMETYPES = [
 ]
 
 
-def validate_video_size(file):
+def validate_video_size(file: File) -> None:
     """
     Validate video file size does not exceed maximum limit.
 
@@ -60,7 +61,7 @@ def validate_video_size(file):
         )
 
 
-def validate_video_mimetype(file):
+def validate_video_mimetype(file: File) -> None:
     """
     Validate file is actually a video by inspecting MIME type.
 

@@ -13,6 +13,8 @@ Note: We separate Video (media file) from Lesson (pedagogical structure) to allo
 future flexibility (e.g., lessons with PDFs, quizzes, or multiple videos).
 """
 
+from typing import Optional
+
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
@@ -94,17 +96,22 @@ class Video(TimeStampedModel):
         verbose_name = _("video")
         verbose_name_plural = _("videos")
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["is_processed"]),
+            models.Index(fields=["file_size"]),
+            models.Index(fields=["created_at"]),
+        ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.title
 
     @property
-    def file_size_mb(self):
+    def file_size_mb(self) -> float:
         """Return file size in megabytes."""
         return round(self.file_size / (1024 * 1024), 2) if self.file_size else 0
 
     @property
-    def duration_formatted(self):
+    def duration_formatted(self) -> str:
         """Return duration in HH:MM:SS format."""
         if not self.duration:
             return "00:00:00"
@@ -203,10 +210,10 @@ class Lesson(TimeStampedModel):
             models.Index(fields=["is_free_preview"]),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.course.title} - Lesson {self.order}: {self.title}"
 
-    def clean(self):
+    def clean(self) -> None:
         """Ensure module (when set) belongs to the lesson's course."""
         super().clean()
         if (
@@ -218,7 +225,7 @@ class Lesson(TimeStampedModel):
                 {"module": _("The selected module belongs to a different course.")}
             )
 
-    def get_next_lesson(self):
+    def get_next_lesson(self) -> Optional["Lesson"]:
         """Return the next lesson in the course."""
         return (
             Lesson.objects.filter(course=self.course, order__gt=self.order)
@@ -226,7 +233,7 @@ class Lesson(TimeStampedModel):
             .first()
         )
 
-    def get_previous_lesson(self):
+    def get_previous_lesson(self) -> Optional["Lesson"]:
         """Return the previous lesson in the course."""
         return (
             Lesson.objects.filter(course=self.course, order__lt=self.order)
@@ -235,7 +242,7 @@ class Lesson(TimeStampedModel):
         )
 
     @property
-    def duration_formatted(self):
+    def duration_formatted(self) -> str:
         """Return duration in 'Xh Ymin' format."""
         hours = self.duration // 60
         minutes = self.duration % 60
