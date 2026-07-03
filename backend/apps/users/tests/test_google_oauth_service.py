@@ -216,6 +216,21 @@ class TestExchangeCodeHttp:
         with pytest.raises(ValueError, match="exchange"):
             self.service._exchange_code("bad-code")
 
+    @patch("apps.users.services.google_oauth.http_requests.post")
+    def test_exchange_code_missing_id_token_raises_value_error(self, mock_post):
+        """A 2xx response without id_token raises ValueError, not KeyError.
+
+        Google can return ok=True with a structured error payload; the caller
+        must get the documented ValueError instead of a KeyError leaking as a
+        500 downstream (handle_callback reads tokens["id_token"]).
+        """
+        response = MagicMock(ok=True)
+        response.json.return_value = {"error": "invalid_grant"}
+        mock_post.return_value = response
+
+        with pytest.raises(ValueError, match="id_token"):
+            self.service._exchange_code("auth-code")
+
 
 @pytest.mark.django_db
 class TestAccountLinkingSecurity:
