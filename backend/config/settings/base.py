@@ -262,13 +262,18 @@ CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 CORS_ALLOW_CREDENTIALS = True
 
 
+# Application version — single source referenced by the health payload
+# (apps.core.views) and the OpenAPI schema below, so they cannot drift.
+APP_VERSION = "1.0.0"
+
+
 # DRF Spectacular (OpenAPI Documentation)
 # https://drf-spectacular.readthedocs.io/en/latest/settings.html
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "WSS Backend API",
     "DESCRIPTION": "API para plataforma de cursos em vídeo",
-    "VERSION": "1.0.0",
+    "VERSION": APP_VERSION,
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
 }

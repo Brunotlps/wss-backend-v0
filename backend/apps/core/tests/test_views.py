@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+from django.conf import settings
 from django.db.utils import OperationalError
 
 from rest_framework import status
@@ -37,6 +38,12 @@ class TestHealthCheck:
         assert response.data["status"] == "ok"
         assert response.data["message"] == "WSS Backend API is running!"
         assert isinstance(response.data["version"], str) and response.data["version"]
+
+    def test_health_version_is_sourced_from_settings(self, api_client):
+        """The payload version and the OpenAPI schema share one source."""
+        response = api_client.get(self.URL)
+        assert response.data["version"] == settings.APP_VERSION
+        assert settings.SPECTACULAR_SETTINGS["VERSION"] == settings.APP_VERSION
 
 
 @pytest.mark.django_db
