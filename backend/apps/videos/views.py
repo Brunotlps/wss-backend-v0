@@ -46,7 +46,9 @@ Database Optimization:
     - Prevents N+1 query problems through strategic relationship loading
 """
 
-from django.db.models import Q
+from typing import TYPE_CHECKING
+
+from django.db.models import Q, QuerySet
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 
@@ -59,6 +61,9 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from django_filters.rest_framework import DjangoFilterBackend
+
+if TYPE_CHECKING:
+    from rest_framework.serializers import BaseSerializer
 
 from .filters import LessonFilter, VideoFilter
 from .models import Lesson, Video
@@ -149,8 +154,8 @@ class VideoViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at", "file_size", "duration"]
     ordering = ["-created_at"]
 
-    def get_serializer_class(self):
-
+    def get_serializer_class(self) -> "type[BaseSerializer]":
+        """Return the serializer class for the current action."""
         if self.action == "list":
             return VideoListSerializer
         return VideoSerializer
@@ -164,7 +169,7 @@ class VideoViewSet(viewsets.ModelViewSet):
             return [UploadRateThrottle()]
         return super().get_throttles()
 
-    def get_queryset(self):
+    def get_queryset(self) -> "QuerySet[Video]":
         """Scope visible videos by course publication and ownership (#55).
 
         IsEnrolled only gates object-level access (retrieve/file), never the
@@ -285,8 +290,8 @@ class LessonViewSet(viewsets.ModelViewSet):
     ordering_fields = ["order", "duration", "created_at"]
     ordering = ["course", "order"]
 
-    def get_serializer_class(self):
-
+    def get_serializer_class(self) -> "type[BaseSerializer]":
+        """Return the serializer class for the current action."""
         if self.action == "list":
             return LessonListSerializer
         elif self.action == "retrieve":
@@ -297,8 +302,13 @@ class LessonViewSet(viewsets.ModelViewSet):
             return LessonUpdateSerializer
         return LessonDetailSerializer
 
-    def get_queryset(self):
+    def get_queryset(self) -> "QuerySet[Lesson]":
+        """Scope visible lessons by course publication and ownership.
 
+        Staff see all lessons; instructors see lessons in their own courses
+        plus any published course; everyone else sees only published-course
+        lessons.
+        """
         queryset = super().get_queryset()
         user = self.request.user
 
