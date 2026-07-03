@@ -40,8 +40,8 @@ class VideoSerializer(serializers.ModelSerializer):
     Includes computed fields for human-readable file size and duration.
 
     Validations:
-    - File size must not exceed 500MB
-    - Only video formats are accepted (mp4, webm, avi, mov)
+    - File size must not exceed 2GB
+    - Only video formats are accepted (mp4, webm, mov)
     - file_size is automatically calculated from uploaded file
     """
 
