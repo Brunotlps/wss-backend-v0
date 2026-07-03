@@ -8,6 +8,7 @@ from django.db import connection
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
+from rest_framework.request import Request
 from rest_framework.response import Response
 
 from .throttles import HealthCheckThrottle
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 @api_view(["GET", "HEAD"])
 @permission_classes([AllowAny])
 @throttle_classes([HealthCheckThrottle])
-def health_check(request):
+def health_check(request: Request) -> Response:
     """Liveness probe — returns 200 if the process is alive.
 
     Used by Docker healthcheck, load balancers, and uptime monitoring tools.
@@ -61,7 +62,7 @@ def _check_cache() -> bool:
 @api_view(["GET", "HEAD"])
 @permission_classes([AllowAny])
 @throttle_classes([HealthCheckThrottle])
-def readiness_check(request):
+def readiness_check(request: Request) -> Response:
     """Readiness probe — verifies the API can serve traffic.
 
     Unlike the liveness probe, this checks the critical backing services so a

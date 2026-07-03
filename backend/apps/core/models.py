@@ -13,7 +13,7 @@ from django.db import models
 
 class TimeStampedModel(models.Model):
     """
-    Abstract base model that provides self-updating 'created_at' and 'updated_at' fields.
+    Abstract base model with self-updating created_at/updated_at fields.
 
     This model serves as a base class for other models in the application that need
     automatic timestamp tracking. By inheriting from this model, other models
