@@ -42,7 +42,7 @@ class TimeStampedModel(models.Model):
     updated_at = models.DateTimeField(
         auto_now=True,
         verbose_name="Updated at",
-        help_text="Timestamp when this object last updated",
+        help_text="Timestamp when this object was last updated",
     )
 
     class Meta:
