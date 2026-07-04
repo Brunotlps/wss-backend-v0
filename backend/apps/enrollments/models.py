@@ -63,6 +63,12 @@ class Enrollment(TimeStampedModel):
       - Use signals to auto-mark completed when all lessons are done
       - certificate_issued triggers certificate generation task
       - payment is null for free courses; required for paid courses
+      - The enrollment permission cache (``enrollment:{user_id}:{course_id}``)
+        is invalidated only via ``save()``/``delete()`` (below). Do NOT use
+        ``Enrollment.objects.filter(...).update(...)``, ``bulk_create``, or
+        ``bulk_update`` on this model without also invalidating that cache
+        key explicitly — those bypass the instance methods (#33, latent;
+        no such call site exists today).
     """
 
     user = models.ForeignKey(
