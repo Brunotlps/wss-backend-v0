@@ -43,7 +43,14 @@ class Enrollment(TimeStampedModel):
       user (ForeignKey): Student enrolled in the course.
       course (ForeignKey): Course the student is enrolled in.
       enrolled_at (DateTimeField): When the enrollment occurred (auto-set).
-      is_active (BooleanField): Whether enrollment is currently active.
+      is_active (BooleanField): Whether enrollment is currently active. False
+          means access was revoked (e.g. a refund — see
+          ``payments.services.StripeService.handle_refund``). While inactive,
+          video access is blocked (``videos.permissions.IsEnrolled`` filters
+          ``is_active=True``) and new progress cannot be recorded
+          (``LessonProgressSerializer.validate``, defended again in
+          ``signals.check_course_completion``) — see #32. A certificate
+          already issued before deactivation is not retroactively revoked.
       completed (BooleanField): Whether student completed the course.
       completed_at (DateTimeField): When the course was completed.
       certificate_issued (BooleanField): Whether certificate was generated.

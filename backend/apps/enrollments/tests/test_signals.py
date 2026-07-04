@@ -105,6 +105,26 @@ class TestCheckCourseCompletion:
         enrollment.refresh_from_db()
         assert not enrollment.completed
 
+    def test_inactive_enrollment_not_auto_completed(self):
+        """Signal does not auto-complete an inactive (e.g. refunded) enrollment (#32).
+
+        Defense in depth alongside the serializer guard (mirrors the #29
+        cross-course pattern): even if a LessonProgress somehow gets saved
+        completed=True while the enrollment is inactive (admin edit, direct
+        ORM access), the signal must not complete the course or queue a
+        certificate for access that was revoked.
+        """
+        course = CourseFactory()
+        lesson = LessonFactory(course=course)
+        enrollment = EnrollmentFactory(course=course, is_active=False)
+        progress = LessonProgressFactory(enrollment=enrollment, lesson=lesson)
+
+        progress.completed = True
+        progress.save()
+
+        enrollment.refresh_from_db()
+        assert not enrollment.completed
+
     def test_uncompleted_lesson_progress_save_does_nothing(self):
         """Saving a LessonProgress with completed=False never triggers completion."""
         course = CourseFactory()

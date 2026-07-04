@@ -344,6 +344,8 @@ class LessonProgressSerializer(serializers.ModelSerializer):
         Object-level validation (Nível 2):
         - watched_duration cannot exceed lesson.duration
         - Only enrollment owner can create/update progress
+        - Enrollment must be active (#32); lesson must belong to the
+          enrollment's course (#29)
 
         Args:
             attrs (dict): Validated field data from level 1
@@ -372,6 +374,18 @@ class LessonProgressSerializer(serializers.ModelSerializer):
         if enrollment and user and enrollment.user != user:
             raise serializers.ValidationError(
                 {"enrollment": "You can only update your own progress."}
+            )
+
+        if enrollment and not enrollment.is_active:
+            # #32: is_active=False (e.g. after a refund, payments.services
+            # handle_refund) revokes access — video access is already blocked
+            # by IsEnrolled; progress writes must be blocked too, or a
+            # refunded student could keep completing lessons and still
+            # trigger course completion / a certificate.
+            raise serializers.ValidationError(
+                {
+                    "enrollment": "This enrollment is not active; progress cannot be recorded."
+                }
             )
 
         if enrollment and lesson and lesson.course_id != enrollment.course_id:
