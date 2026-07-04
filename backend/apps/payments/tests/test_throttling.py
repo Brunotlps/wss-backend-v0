@@ -51,6 +51,33 @@ class TestPaymentIntentThrottling:
         assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
 
     @patch("apps.payments.services.stripe.PaymentIntent.create")
+    def test_create_intent_limit_isolated_from_other_authenticated_requests(
+        self, mock_create, auth_client
+    ):
+        """Ordinary authenticated reads must not consume the create-intent allowance.
+
+        PaymentIntentRateThrottle must use a dedicated scope, not the global
+        ``user`` bucket (#136, mirrors #57's fix for video uploads). Without
+        that isolation, unrelated authenticated traffic erodes the 10/day
+        create-intent allowance.
+        """
+        mock_create.return_value = MagicMock(
+            id="pi_test_789",
+            client_secret="pi_test_789_secret_def",
+            amount=9990,
+            currency="brl",
+        )
+
+        for _ in range(15):
+            auth_client.get("/api/payments/")
+
+        course = CourseFactory(price=99.90)
+        payload = {"course_id": course.id}
+        for _ in range(10):
+            response = auth_client.post(self.URL, payload, format="json")
+            assert response.status_code == status.HTTP_200_OK
+
+    @patch("apps.payments.services.stripe.PaymentIntent.create")
     def test_different_users_have_separate_limits(self, mock_create, api_client):
         """Each authenticated user has their own independent 10/day limit."""
         mock_create.return_value = MagicMock(
