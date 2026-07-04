@@ -346,6 +346,46 @@ class TestLessonProgressViewSet:
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+    def test_create_progress_on_inactive_enrollment_returns_400(self, auth_client):
+        """Progress cannot be recorded on a deactivated (e.g. refunded) enrollment (#32).
+
+        is_active=False blocks video access already (IsEnrolled); it must also
+        block new progress writes, or a refunded student could keep completing
+        lessons and still trigger course completion / a certificate.
+        """
+        enrollment = EnrollmentFactory(user=auth_client.user, is_active=False)
+        lesson = LessonFactory(course=enrollment.course)
+        response = auth_client.post(
+            self.URL,
+            {
+                "enrollment_id": enrollment.pk,
+                "lesson_id": lesson.pk,
+                "watched_duration": 5,
+            },
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "enrollment" in response.data
+
+    def test_patch_progress_on_inactive_enrollment_returns_400(self, auth_client):
+        """PATCH is also blocked once the enrollment is deactivated (#32).
+
+        Simulates a refund arriving after progress already exists: the student
+        must not be able to keep updating/completing it afterwards.
+        """
+        enrollment = EnrollmentFactory(user=auth_client.user, is_active=False)
+        lesson = LessonFactory(course=enrollment.course, duration=10)
+        progress = LessonProgressFactory(
+            enrollment=enrollment, lesson=lesson, watched_duration=0
+        )
+        response = auth_client.patch(
+            f"{self.URL}{progress.pk}/",
+            {"watched_duration": 6},
+            format="json",
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "enrollment" in response.data
+
     def test_create_progress_on_other_users_enrollment_returns_400(self, auth_client):
         """A student cannot record progress against someone else's enrollment."""
         other_enrollment = EnrollmentFactory()  # belongs to another user

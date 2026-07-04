@@ -40,6 +40,19 @@ def check_course_completion(sender, instance, **kwargs):
     if enrollment.completed:
         return
 
+    if not enrollment.is_active:
+        # #32: defense in depth (mirrors the #29 cross-course guard) — the
+        # serializer already blocks new progress writes on an inactive
+        # (e.g. refunded) enrollment, but a progress record could still be
+        # marked completed some other way (admin edit, direct ORM access).
+        # Revoked access must never auto-complete the course or queue a
+        # certificate.
+        logger.info(
+            "Skipping auto-completion for enrollment %d: inactive.",
+            enrollment.id,
+        )
+        return
+
     total_lessons = enrollment.course.lessons.count()
     if total_lessons == 0:
         return
