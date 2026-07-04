@@ -24,6 +24,7 @@ When to use:
 
 from django.core.cache import cache
 
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from apps.enrollments.models import Enrollment
@@ -155,7 +156,10 @@ class IsEnrolled(BasePermission):
             obj: Lesson or Video object being accessed
 
         Returns:
-            bool: True if access granted, False otherwise
+            bool: True if access granted.
+
+        Raises:
+            PermissionDenied: If the user is not enrolled in the object's course.
         """
 
         if request.method not in SAFE_METHODS:
@@ -191,10 +195,18 @@ class IsEnrolled(BasePermission):
         is_enrolled = self._check_enrollment_cached(request.user.id, course.id)
 
         if not is_enrolled:
-            # Customize error message with course name
-            self.message = f"Você precisa estar matriculado no curso '{course.title}' para acessar este conteúdo."
+            # Raise directly instead of mutating self.message (#58): permission
+            # instances can be reused across multiple objects within the same
+            # request, so a stateful self.message would leak one course's title
+            # into the next object's denial response.
+            raise PermissionDenied(
+                detail=(
+                    f"Você precisa estar matriculado no curso "
+                    f"'{course.title}' para acessar este conteúdo."
+                )
+            )
 
-        return is_enrolled
+        return True
 
     def _is_free_preview(self, obj):
         """

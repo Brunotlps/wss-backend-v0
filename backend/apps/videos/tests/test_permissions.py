@@ -87,6 +87,31 @@ class TestIsEnrolled:
         response = auth_client.get(f"{self.URL}{lesson2.pk}/")
         assert response.status_code == status.HTTP_200_OK
 
+    def test_denial_does_not_mutate_shared_message_state(self, auth_client):
+        """Denial must raise PermissionDenied instead of mutating self.message (#58).
+
+        A single permission instance can be reused across multiple objects within
+        the same request/view lifecycle; mutating self.message leaks one course's
+        title into the next object's denial response.
+        """
+        from rest_framework.exceptions import PermissionDenied
+
+        from apps.videos.permissions import IsEnrolled
+
+        permission = IsEnrolled()
+        course = CourseFactory(is_published=True, title="Django Mastery")
+        lesson = LessonFactory(course=course, order=2, is_free_preview=False)
+
+        class DummyRequest:
+            method = "GET"
+            user = auth_client.user
+
+        with pytest.raises(PermissionDenied) as exc_info:
+            permission.has_object_permission(DummyRequest(), None, lesson)
+
+        assert "Django Mastery" in str(exc_info.value.detail)
+        assert permission.message == IsEnrolled.message
+
 
 @pytest.mark.django_db
 class TestIsCourseInstructorOrReadOnly:
