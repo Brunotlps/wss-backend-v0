@@ -105,3 +105,32 @@ class TestCertificateModel:
 
         indexed_fields = {tuple(index.fields) for index in Certificate._meta.indexes}
         assert ("certificate_code",) not in indexed_fields
+
+    def test_deleting_enrollment_does_not_delete_certificate(self):
+        """Deleting the enrollment does not destroy the issued certificate (#38).
+
+        A certificate is a legal proof-of-completion document; it must
+        outlive the enrollment it was issued from. on_delete=SET_NULL keeps
+        the row (enrollment becomes None) instead of on_delete=CASCADE
+        destroying it.
+        """
+        enrollment = EnrollmentFactory()
+        cert = CertificateFactory(enrollment=enrollment)
+        cert_pk = cert.pk
+
+        enrollment.delete()
+
+        cert.refresh_from_db()
+        assert Certificate.objects.filter(pk=cert_pk).exists()
+        assert cert.enrollment_id is None
+
+    def test_str_does_not_crash_when_enrollment_deleted(self):
+        """__str__ renders from the snapshot, not a crash, once orphaned (#38)."""
+        enrollment = EnrollmentFactory()
+        cert = CertificateFactory(
+            enrollment=enrollment, student_name_snapshot="Jane Doe"
+        )
+        enrollment.delete()
+        cert.refresh_from_db()
+
+        assert "Jane Doe" in str(cert)

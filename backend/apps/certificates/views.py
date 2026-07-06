@@ -112,7 +112,7 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
                     else "Certificate has been revoked"
                 ),
                 "certificate_code": certificate.certificate_code,
-                "student_name": certificate.enrollment.user.get_full_name(),
+                "student_name": certificate.student_name,
             },
             status=status.HTTP_200_OK,
         )

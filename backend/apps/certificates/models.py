@@ -35,6 +35,10 @@ class Certificate(TimeStampedModel):
 
     Attributes:
         enrollment (OneToOneField): The enrollment this certificate belongs to.
+            Nullable: deleting the enrollment sets this to None instead of
+            deleting the certificate (#38) — a certificate is legal proof of
+            completion and must outlive its source enrollment. The snapshot
+            fields below keep it fully renderable once orphaned.
         certificate_code (CharField): Unique code for validation (e.g., WSS-2026-ABC123).
         issued_at (DateTimeField): When the certificate was issued.
         pdf_file (FileField): PDF file stored in media/certificates/.
@@ -48,7 +52,8 @@ class Certificate(TimeStampedModel):
 
     enrollment = models.OneToOneField(
         Enrollment,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
         related_name="certificate",
         verbose_name=_("enrollment"),
         help_text=_("Enrollment this certificate belongs to"),
@@ -142,7 +147,7 @@ class Certificate(TimeStampedModel):
 
     def __str__(self) -> str:
         code = self.certificate_code or "(pending)"
-        return f"{code} - {self.enrollment.user.get_full_name()}"
+        return f"{code} - {self.student_name}"
 
     @property
     def student_name(self) -> str:

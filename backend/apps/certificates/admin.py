@@ -30,13 +30,13 @@ class CertificateAdmin(admin.ModelAdmin):
     ordering = ["-issued_at"]
 
     def student_name(self, obj):
-        """Display student name from enrollment"""
-        return obj.enrollment.user.get_full_name()
+        """Display student name (snapshot-safe once orphaned, #38)."""
+        return obj.student_name
 
     student_name.short_description = "Student"
 
     def course_title(self, obj):
-        """Display course title from enrollment"""
-        return obj.enrollment.course.title
+        """Display course title (snapshot-safe once orphaned, #38)."""
+        return obj.course_title
 
     course_title.short_description = "Course"
