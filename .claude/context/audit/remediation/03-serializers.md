@@ -55,11 +55,10 @@ one-off detection/merge before it can bite (not auto-merged here).
 `validate_price` rejects `value < 0` in create & update serializers (or `MinValueValidator(0)`
 on the model + migration).
 
-### Drop redundant authz checks (wrong status) — #66 ✅ FIXED (PR #126, 2026-06-22), #25 (payments) — ⬜ OPEN
+### Drop redundant authz checks (wrong status) — #66 ✅ FIXED (PR #126, 2026-06-22), #25 ✅ FIXED (PR #214, 2026-07-04)
 Remove ownership/role re-checks from serializers that duplicate permissions and return 400 instead
 of 403; rely on the permission classes. Move `instructor = request.user` to `perform_create`.
-Delete dead `PaymentIntentResponseSerializer` (#25) or wire it into the response. **#25 still open**
-— the dead serializer has not been removed yet.
+Dead `PaymentIntentResponseSerializer` (#25) removed — confirmed zero references repo-wide.
 
 ### Progress POST timestamps — #31 (enrollments, Major) ✅ FIXED (PR #127, 2026-06-22)
 Move `completed_at`/`watched_duration` logic into a shared method called by both `create` and
@@ -82,4 +81,5 @@ docstring with `validators.py` (2GB, no avi).
 - [x] Progress with a foreign-course lesson → 400. — #29.
 - [x] Negative price → 400; emails stored lowercase; no duplicate-by-case accounts. — #65/#46.
 - [x] No serializer returns 400 for an authorization failure (permissions return 403). — #66/#67.
-      (**#25 dead-code cleanup still open**, unrelated to this criterion.)
+
+**Layer 100% closed** (all owned issues #25/#29/#30/#31/#39/#40/#45/#46/#60/#65/#66/#67 resolved).
