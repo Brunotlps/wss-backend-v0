@@ -376,14 +376,31 @@ class TestModuleViewSet:
         assert response.status_code == status.HTTP_201_CREATED
         assert Module.objects.filter(title="New Module").exists()
 
-    def test_create_module_as_non_owner_returns_400(self, instructor_client):
-        """Instructor that does not own the course is rejected."""
+    def test_create_module_as_non_owner_returns_403(self, instructor_client):
+        """Instructor that does not own the course is rejected with 403 (#122).
+
+        Authorization failures return 403 (api-conventions.md), consistent
+        with the update path (test_update_module_as_non_owner_returns_403) —
+        not 400, which was the serializer wrongly performing authz.
+        """
         course = CourseFactory()  # different instructor
         payload = {
             "course": course.pk,
             "title": "Not Mine",
             "order": 1,
         }
+        response = instructor_client.post(self.URL, payload)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_create_module_missing_course_returns_400(self, instructor_client):
+        """Missing course is a validation error (400), not an authz failure."""
+        payload = {"title": "No Course", "order": 1}
+        response = instructor_client.post(self.URL, payload)
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_create_module_nonexistent_course_returns_400(self, instructor_client):
+        """A non-existent course id is a validation error (400), not 403."""
+        payload = {"course": 999999, "title": "Ghost Course", "order": 1}
         response = instructor_client.post(self.URL, payload)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
