@@ -3,6 +3,7 @@
 import pytest
 
 from apps.certificates.factories import CertificateFactory
+from apps.certificates.models import Certificate
 from apps.courses.factories import CourseFactory
 from apps.enrollments.factories import EnrollmentFactory
 from apps.users.factories import InstructorFactory, UserFactory
@@ -90,3 +91,17 @@ class TestCertificateModel:
         enrollment.save()
         cert = CertificateFactory(enrollment=enrollment)
         assert cert.completion_date == now
+
+    def test_certificate_code_has_no_redundant_index(self):
+        """certificate_code relies solely on its unique constraint (#85).
+
+        ``unique=True`` already creates an index; a separate ``db_index=True``
+        and an explicit ``Meta.indexes`` entry on the same field were
+        redundant duplicate indexes on the same column.
+        """
+        field = Certificate._meta.get_field("certificate_code")
+        assert field.unique is True
+        assert field.db_index is False
+
+        indexed_fields = {tuple(index.fields) for index in Certificate._meta.indexes}
+        assert ("certificate_code",) not in indexed_fields

@@ -57,8 +57,10 @@ class Certificate(TimeStampedModel):
     certificate_code = models.CharField(
         _("certificate code"),
         max_length=24,
+        # unique=True already creates an index; db_index=True (and the old
+        # explicit Meta.indexes entry, removed below) were redundant
+        # duplicate indexes on the same column (#85).
         unique=True,
-        db_index=True,
         null=True,
         blank=True,
         help_text=_("Unique validation code (format: WSS-YYYY-XXXXXXXXXXXX)"),
@@ -132,7 +134,8 @@ class Certificate(TimeStampedModel):
         verbose_name_plural = _("certificates")
         ordering = ["-issued_at"]  # Newest first
         indexes = [
-            models.Index(fields=["certificate_code"]),
+            # certificate_code is not indexed here: unique=True on the field
+            # already creates one (#85).
             models.Index(fields=["enrollment"]),
             models.Index(fields=["-issued_at"]),
         ]

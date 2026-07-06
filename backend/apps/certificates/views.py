@@ -58,13 +58,13 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
 
         if not certificate.is_valid:
             return Response(
-                {"error": "This certificate has been revoked"},
+                {"detail": "This certificate has been revoked"},
                 status=status.HTTP_410_GONE,
             )
 
         if not certificate.pdf_file:
             return Response(
-                {"error": "PDF file not available for this certificate"},
+                {"detail": "PDF file not available for this certificate"},
                 status=status.HTTP_404_NOT_FOUND,
             )
 

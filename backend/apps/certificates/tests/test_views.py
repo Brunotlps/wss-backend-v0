@@ -52,20 +52,32 @@ class TestCertificateViewSet:
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_download_returns_404_when_no_pdf(self, auth_client):
-        """Download endpoint returns 404 when no PDF file exists."""
+        """Download endpoint returns 404 when no PDF file exists.
+
+        Error envelope uses ``detail`` (DRF/api-conventions.md standard), not
+        the non-standard ``error`` key (#85).
+        """
         enrollment = EnrollmentFactory(user=auth_client.user)
         cert = CertificateFactory(enrollment=enrollment, pdf_file=None)
         response = auth_client.get(f"{self.URL}{cert.pk}/download/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert "detail" in response.data
+        assert "error" not in response.data
 
     def test_download_revoked_certificate_returns_410(self, auth_client):
-        """A revoked certificate is not downloadable even with a PDF (#81)."""
+        """A revoked certificate is not downloadable even with a PDF (#81).
+
+        Error envelope uses ``detail`` (DRF/api-conventions.md standard), not
+        the non-standard ``error`` key (#85).
+        """
         enrollment = EnrollmentFactory(user=auth_client.user)
         cert = CertificateFactory(
             enrollment=enrollment, is_valid=False, pdf_file=_pdf()
         )
         response = auth_client.get(f"{self.URL}{cert.pk}/download/")
         assert response.status_code == status.HTTP_410_GONE
+        assert "detail" in response.data
+        assert "error" not in response.data
 
     def test_download_valid_certificate_with_pdf_returns_200(self, auth_client):
         """A valid certificate with a PDF is still downloadable (#81 guard)."""
