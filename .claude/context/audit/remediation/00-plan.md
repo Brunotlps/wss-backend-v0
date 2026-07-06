@@ -102,16 +102,24 @@ Phase 3 — Hardening & hygiene
     building unused robustness for a hypothetical bulk write path.
   - All fixes deployed + validated in prod. Docs: `.claude/context/backlog/2026-07-04-*.md`.
 
-- **Remaining — Minor (10), no Major left open.** #85 certificates (error envelope
-  `{"error"}`→`{"detail"}` = **frontend contract** + redundant index + naive datetime) · #62 videos
-  **bug** (f-string inside `_()` gettext breaks i18n, `validators.py:56/98/110`; + 2 messages
-  missing a separator) · #24 payments (admin allows silent Payment `status` edits) · #25 payments
-  (dead `PaymentIntentResponseSerializer`) · #38 cert `on_delete=CASCADE` · #122 courses (module
-  serializer 400→403) · #151 infra (healthcheck 301) · #155 users (OAuth exchange hardening) ·
-  #180 enrollments (123-char f-string) · #183 infra (venv shebangs).
-  - **Counts:** Blocking 0/18 · Major 0/42 open · Minor 10/36 open. Run `/audit-status` and
-    recommend per severity/layer — remaining items mix dead-code (#25/#24), a frontend contract
-    (#85), mechanical style fixes (#180/#183), and small correctness bugs (#62/#122/#151/#155/#38).
+- **2026-07-06 slices (most-complex-first order): #155, #85, #38, #122 all ✅ FIXED, deployed,
+  validated in prod.** #155 users (OAuth exchange scope + Redis-outage detection, PR #216) · #85
+  certificates (error envelope `detail` + redundant index + `timezone.now()`, PR #218; frontend
+  coordinated and updated by Bruno) · #38 certificates (`on_delete` CASCADE→SET_NULL, PR #221;
+  surfaced follow-up **#220** — staff can't actually access other users' certificates) · #122
+  courses (module create ownership moved to permission layer, PR #224; surfaced follow-up **#223**
+  — unfiltered course lookup can enumerate unpublished courses). Docs:
+  `.claude/context/backlog/2026-07-06-*.md`.
+
+- **Remaining — Minor (6) of the original 2026-06 audit, no Major left open.** #62 videos **bug**
+  (f-string inside `_()` gettext breaks i18n, `validators.py:56/98/110`; + 2 messages missing a
+  separator) · #24 payments (admin allows silent Payment `status` edits) · #151 infra (healthcheck
+  301) · #180 enrollments (123-char f-string) · #183 infra (venv shebangs).
+  - **Counts:** Blocking 0/18 · Major 0/42 open · Minor 6/36 open (+ 2 new follow-ups #220/#223
+    filed during the 2026-07-06 slices, tracked separately from the original audit's count). Run
+    `/audit-status` and recommend per severity/layer — remaining items mix a mechanical bug (#62),
+    a small admin-hardening item (#24), mechanical style fixes (#180/#183), and an infra fix
+    (#151).
 
 ## Working agreement (per project rules)
 
