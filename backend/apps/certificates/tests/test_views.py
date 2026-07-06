@@ -151,6 +151,25 @@ class TestCertificateViewSet:
         assert response.status_code == status.HTTP_200_OK
         assert response.data["valid"] is True
 
+    def test_validate_by_code_survives_deleted_enrollment(self, api_client):
+        """Public verification still works after the enrollment is deleted (#38).
+
+        The certificate is a legal proof-of-completion document — deleting
+        its source enrollment must not delete the certificate nor crash
+        verification. The snapshot (#77), not the live enrollment, is what
+        keeps this endpoint working.
+        """
+        enrollment = EnrollmentFactory()
+        cert = CertificateFactory(
+            enrollment=enrollment, student_name_snapshot="Jane Doe"
+        )
+        enrollment.delete()
+
+        response = api_client.get(f"{self.URL}validate/{cert.certificate_code}/")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["valid"] is True
+        assert response.data["student_name"] == "Jane Doe"
+
     def test_list_certificates_empty_when_no_enrollments(self, auth_client):
         """Authenticated user with no certificates sees empty list."""
         response = auth_client.get(self.URL)
