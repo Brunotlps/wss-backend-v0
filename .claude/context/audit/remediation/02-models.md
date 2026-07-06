@@ -61,10 +61,13 @@ self.slug = slug
 `_("...type. ") + _("Make sure...")` — add the missing space; use `%(x)s` not `_(f"...")`.
 
 ### Misc — #24 (payments admin: `status` editable on financial record → make read-only or audit) — ⬜ OPEN,
-#85 (certificates: drop redundant index on `certificate_code`; `timezone.now()` not naive `today()`) — ⬜ OPEN.
+#85 (certificates: drop redundant index on `certificate_code`; `timezone.now()` not naive `today()`) — ✅ FIXED (PR #218, 2026-07-06).
 
-### `on_delete=CASCADE` on Certificate.enrollment — #38 (certificates, Minor) — ⬜ OPEN
-Deleting an enrollment currently destroys the issued certificate; change to `SET_NULL`/`PROTECT`.
+### `on_delete=CASCADE` on Certificate.enrollment — #38 (certificates, Minor) ✅ FIXED (PR #221, 2026-07-06)
+Changed to `SET_NULL` + `null=True` (migration `0009`). Fixed the 3 call sites that bypassed the
+model's already-null-safe snapshot properties (`__str__`, `validate_by_code`, admin display
+methods). Follow-up filed: #220 (staff can't actually access other users' certificates, unrelated
+latent gap surfaced during this fix).
 
 ### `is_active` semantics — #32† (enrollments, Major) ✅ RESOLVED (PR #211, 2026-07-04)
 Decided: blocks video access (already true) + progress writes + auto-completion; certificate
@@ -73,7 +76,7 @@ already issued is not retroactively revoked. See `04-permissions.md`.
 ## Done criteria
 - [x] Certificate renders from its own snapshot; editing source course/user does not change an
       issued certificate or its verification response. — #77.
-- [ ] Deleting an enrollment no longer deletes the certificate (FK `SET_NULL`/`PROTECT`). — #38 still open.
+- [x] Deleting an enrollment no longer deletes the certificate (FK `SET_NULL`/`PROTECT`). — #38.
 - [x] Codes are `secrets`-based, ≥12 secret chars, collision-safe. — #75.
 - [x] Slug collisions return 400; money fields use `Decimal` end-to-end (see `06` #14). — #68 + #14.
 - [x] Migrations reviewed (project rule: ask before makemigrations). — followed consistently across all slices.
