@@ -41,6 +41,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from django.conf import settings
+from django.utils import timezone
 
 from reportlab.lib.colors import Color, HexColor
 from reportlab.lib.enums import TA_CENTER
@@ -250,7 +251,7 @@ def generate_certificate_pdf(certificate: "Certificate") -> str:
 
     # Validate completion_date before using it
     if completion_date is None:
-        completion_date = datetime.today()
+        completion_date = timezone.now()
 
     # Create directory structure if it doesn't exist
     pdf_dir = os.path.join(

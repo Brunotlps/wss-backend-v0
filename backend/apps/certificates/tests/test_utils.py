@@ -82,17 +82,23 @@ class TestGenerateCertificatePDF:
         assert written.exists()
         assert written.read_bytes().startswith(b"%PDF")
 
-    def test_falls_back_to_today_when_completion_date_missing(self, settings, tmp_path):
-        """A PDF-pending cert with no completion date still renders (uses today)."""
+    def test_falls_back_to_timezone_now_when_completion_date_missing(
+        self, settings, tmp_path, monkeypatch
+    ):
+        """A PDF-pending cert with no completion date still renders, using the
+        timezone-aware ``timezone.now()`` rather than a naive
+        ``datetime.today()`` (#85, timezone-aware project)."""
         settings.MEDIA_ROOT = str(tmp_path)
         # Default enrollment is not completed -> completed_at is None and no
         # snapshot is set, so completion_date is None and the helper falls back.
         cert = CertificateFactory(certificate_code="WSS-2026-NODATE0001")
         assert cert.completion_date is None
 
+        fixed_now = timezone.make_aware(datetime(2030, 11, 5))
+        monkeypatch.setattr("apps.certificates.utils.timezone.now", lambda: fixed_now)
+
         relative_path = generate_certificate_pdf(cert)
 
-        today = datetime.today()
-        expected_dir = today.strftime("certificates/%Y/%m/")
+        expected_dir = fixed_now.strftime("certificates/%Y/%m/")
         assert relative_path == f"{expected_dir}WSS-2026-NODATE0001.pdf"
         assert (tmp_path / relative_path).read_bytes().startswith(b"%PDF")
