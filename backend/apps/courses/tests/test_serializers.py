@@ -23,7 +23,12 @@ def _build_context(user):
 
 @pytest.mark.django_db
 class TestModuleSerializer:
-    """Tests for ModuleSerializer (CRUD)."""
+    """Tests for ModuleSerializer (CRUD).
+
+    Ownership is enforced by IsModuleCourseInstructorOrReadOnly, not here
+    (#122) — see apps/courses/tests/test_views.py::TestModuleViewSet for
+    the 403-on-non-owner-create coverage.
+    """
 
     def test_valid_payload_passes(self):
         """Instructor of the course passes validation."""
@@ -41,21 +46,6 @@ class TestModuleSerializer:
         module = serializer.save()
         assert module.title == "Fundamentals"
         assert module.course == course
-
-    def test_non_owner_cannot_create(self):
-        """Users other than course instructor are rejected."""
-        course = CourseFactory()
-        other_instructor = InstructorFactory()
-        payload = {
-            "course": course.pk,
-            "title": "Bad",
-            "order": 1,
-        }
-        serializer = ModuleSerializer(
-            data=payload, context=_build_context(other_instructor)
-        )
-        assert not serializer.is_valid()
-        assert "course" in serializer.errors
 
     def test_duplicate_order_rejected(self):
         """Two modules with same (course, order) are rejected at validation."""

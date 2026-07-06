@@ -305,8 +305,15 @@ class ModuleSerializer(serializers.ModelSerializer):
     Serializer for Module CRUD operations.
 
     Enforces:
-        - Ownership: only the course instructor may create/update a module.
-        - Uniqueness of (course, order) within create and order-changing updates.
+        - Uniqueness of (course, order) within create and order-changing
+          updates, via DRF's built-in UniqueTogetherValidator (declared
+          through Model Meta).
+
+    Note:
+        Ownership (only the course instructor may create/update a module)
+        is enforced by ``IsModuleCourseInstructorOrReadOnly`` at the
+        permission layer, not here — authz failures return 403, not 400
+        (#122; same anti-pattern already fixed for courses in #66).
     """
 
     lessons_count = serializers.SerializerMethodField()
@@ -328,30 +335,6 @@ class ModuleSerializer(serializers.ModelSerializer):
     def get_lessons_count(self, obj: Module) -> int:
         """Return number of lessons inside this module."""
         return obj.lessons.count()
-
-    def _validate_ownership(self, course):
-        """Ensure the requesting user owns the target course."""
-        request = self.context.get("request")
-        if not request or not request.user.is_authenticated:
-            raise serializers.ValidationError(
-                "Authentication required to manage modules."
-            )
-        if course.instructor != request.user:
-            raise serializers.ValidationError(
-                {"course": "You can only manage modules in your own courses."}
-            )
-
-    def validate(self, data):
-        """Validate course ownership.
-
-        Note:
-            unique_together [course, order] is enforced by DRF's built-in
-            UniqueTogetherValidator (declared via Model Meta).
-        """
-        course = data.get("course") or (self.instance.course if self.instance else None)
-        if course:
-            self._validate_ownership(course)
-        return data
 
 
 class ModuleWithLessonsSerializer(serializers.ModelSerializer):

@@ -8,6 +8,7 @@ authorized users can perform certain operations on courses and categories.
 Available permissions:
     - IsInstructorOrReadOnly: Only authenticated instructors can create/modify courses
     - IsCourseOwnerOrReadOnly: Only course owners can update/delete their courses
+    - IsModuleCourseInstructorOrReadOnly: Only the module's course instructor can create/modify modules
 
 When to use:
     - Import these permission classes in views or viewsets
@@ -16,6 +17,8 @@ When to use:
 """
 
 from rest_framework.permissions import SAFE_METHODS, BasePermission
+
+from .models import Course
 
 
 class IsInstructorOrReadOnly(BasePermission):
@@ -117,16 +120,36 @@ class IsModuleCourseInstructorOrReadOnly(BasePermission):
     Read access (GET/HEAD/OPTIONS) is open to anyone; write access (POST,
     PUT, PATCH, DELETE) is restricted to authenticated instructors at the
     view level, and to the specific course instructor at the object level.
+
+    On ``create`` there is no object yet for ``has_object_permission`` to
+    check, so ownership of the target course (from the request body) is
+    resolved here instead (#122) — keeping the authz failure a 403
+    everywhere, instead of the serializer raising a 400 for it. A
+    missing/invalid ``course`` id is deliberately let through (returns
+    True) so the serializer's own field validation surfaces the 400.
     """
 
     def has_permission(self, request, view):
         if request.method in SAFE_METHODS:
             return True
-        return bool(
+        if not bool(
             request.user
             and request.user.is_authenticated
             and request.user.is_instructor
-        )
+        ):
+            return False
+
+        if view.action == "create":
+            course_id = request.data.get("course")
+            if course_id is None:
+                return True
+            try:
+                course = Course.objects.get(pk=course_id)
+            except (Course.DoesNotExist, ValueError, TypeError):
+                return True
+            return course.instructor == request.user
+
+        return True
 
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
