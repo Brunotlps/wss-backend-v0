@@ -32,3 +32,18 @@ class OAuthRateThrottle(AnonRateThrottle):
     """
 
     scope = "oauth"
+
+
+class OAuthExchangeRateThrottle(AnonRateThrottle):
+    """Limit the OAuth code-exchange endpoint per IP address (#155).
+
+    A dedicated scope is required: sharing ``OAuthRateThrottle``'s ``oauth``
+    scope would mean a single login already spends ~3 of the 20/hour budget
+    (init + callback + exchange), and the exchange endpoint — the natural
+    brute-force target for the single-use code — would erode the same bucket
+    that gates legitimate login-init/callback traffic from that IP. Rate is
+    configured under the ``oauth-exchange`` scope (DEFAULT_THROTTLE_RATES),
+    same class of fix as #57 (``video_upload``) and #136 (``payment_intent``).
+    """
+
+    scope = "oauth-exchange"

@@ -314,6 +314,46 @@ class TestExchangeCode:
         assert self.service.consume_exchange_code(None) is None
 
 
+@pytest.mark.django_db
+class TestIssueExchangeCodeCacheOutage:
+    """Detect a suspected cache/Redis outage at issue-time (#155).
+
+    With ``DJANGO_REDIS_IGNORE_EXCEPTIONS=True`` (prod), a Redis blip makes
+    ``cache.set`` silently no-op; the failure would otherwise only surface
+    later as "invalid or expired code" at exchange time — indistinguishable
+    from a genuine bad code. A read-after-write round-trip check right here
+    catches it immediately instead.
+    """
+
+    def setup_method(self):
+        self.service = GoogleOAuthService()
+
+    def test_logs_distinct_error_when_cache_write_does_not_persist(
+        self, caplog, monkeypatch
+    ):
+        """If cache.get() right after cache.set() doesn't return what was
+        just written, log a distinct ERROR (suspected outage, not a bad code)."""
+        user = UserFactory()
+        monkeypatch.setattr(
+            "apps.users.services.google_oauth.cache.get", lambda *a, **k: None
+        )
+        with caplog.at_level("ERROR", logger="apps.users.services.google_oauth"):
+            self.service.issue_exchange_code(user)
+
+        assert any(
+            record.levelname == "ERROR" and "outage" in record.getMessage().lower()
+            for record in caplog.records
+        )
+
+    def test_no_outage_log_when_cache_round_trip_succeeds(self, caplog):
+        """The happy path (cache actually persists) must not log the outage error."""
+        user = UserFactory()
+        with caplog.at_level("ERROR", logger="apps.users.services.google_oauth"):
+            self.service.issue_exchange_code(user)
+
+        assert not any(record.levelname == "ERROR" for record in caplog.records)
+
+
 # ---------------------------------------------------------------------------
 # Etapa 3 — handle_callback: id_token validation
 # ---------------------------------------------------------------------------

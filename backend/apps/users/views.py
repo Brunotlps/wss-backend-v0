@@ -33,7 +33,12 @@ from .serializers import (
     UserUpdateSerializer,
 )
 from .services.google_oauth import GoogleOAuthService
-from .throttles import LoginRateThrottle, OAuthRateThrottle, RegistrationThrottle
+from .throttles import (
+    LoginRateThrottle,
+    OAuthExchangeRateThrottle,
+    OAuthRateThrottle,
+    RegistrationThrottle,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -378,7 +383,7 @@ class GoogleTokenExchangeView(APIView):
 
     authentication_classes = []
     permission_classes = [AllowAny]
-    throttle_classes = [OAuthRateThrottle]
+    throttle_classes = [OAuthExchangeRateThrottle]
 
     def post(self, request):
         """Redeem the code and return the JWT pair in the body."""
