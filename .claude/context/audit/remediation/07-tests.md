@@ -49,9 +49,9 @@ def test_register_ignores_is_instructor_flag(api_client):
     assert User.objects.get(email="a@b.com").is_instructor is False
 ```
 
-## Done criteria
-- [ ] Each Blocking issue has a regression test that fails before the fix and passes after.
-- [ ] `apps.certificates` task/utils ≥90%; `apps.users` permissions ≥90%; enrollments serializers
-      back above 80%.
-- [ ] No test asserts insecure behavior as "expected" (audit found several).
-- [ ] `pytest` green; coverage gate met without relying on import-time-only lines.
+## Done criteria — ✅ ALL DONE (2026-06-30, test-only, no deploy)
+- [x] Each Blocking issue has a regression test that fails before the fix and passes after.
+- [x] `apps.certificates` task/utils ≥90%; `apps.users` permissions ≥90%; enrollments serializers
+      back above 80%. — #82 (certificates 98%), #50 (users 99%), #34/#35 (enrollments 99%).
+- [x] No test asserts insecure behavior as "expected" (audit found several).
+- [x] `pytest` green; coverage gate met without relying on import-time-only lines.

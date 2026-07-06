@@ -1,6 +1,9 @@
 # Current Status
 
-**Sprint 11 concluído. Sprint 12 em andamento.**
+**Sprint 11 concluído. Sprint 12 pausado (arquivado). Remediação da auditoria 2026-06 completa
+para Blocking (16/16) + Major (0 abertos) — restam 10 Minor.**
+
+> Status detalhado e por-camada da remediação: `.claude/context/audit/remediation/00-plan.md`.
 
 ---
 
@@ -22,19 +25,23 @@
 
 ## Métricas
 
-- **Testes:** 340 passando
+- **Testes:** 578 passando, 98% cobertura
 - **RAM:** ~914MB / 1.9GB (47%) + 1GB swap
 - **Disco:** ~7.2GB / 48GB (15%)
 
-## Sprint 12 — Em andamento (branch: `claude-edits`)
+## Sprint 12 — ⏸️ Pausado (arquivado 2026-07-04)
+
+Pausado antes da Fase 1 (Stripe live) rodar — a prioridade virou a remediação da auditoria 2026-06,
+feita direto em `main` (não na branch `claude-edits` referenciada no plano original).
 
 | Fase | Descrição | Status |
 |------|-----------|--------|
-| 1 | Stripe live — transação real | 🔄 Aguardando ativação da conta Stripe |
-| 2 | Limpeza de dados de teste | ⬜ Aguardando Fase 1 |
-| 3 | API production-ready (CORS, logs, staging, Sentry) | 🔄 3.2 e 3.5 concluídas, 3.4 parcial |
+| 1 | Stripe live — transação real | ⬜ Nunca rodou |
+| 2 | Limpeza de dados de teste | ⬜ Nunca rodou |
+| 3 | API production-ready (CORS, logs, staging, Sentry) | 🔄 3.2 e 3.5 concluídas, 3.4 parcial (staging: trabalho real não mergeado, branch `claude-edits` preservada) |
 
-> Detalhes completos em `.claude/context/tasks/sprint-12.md`
+> Detalhes completos em `.claude/context/tasks/archive/sprint-12.md`. Retomar quando a ativação
+> do Stripe live voltar a ser prioridade.
 
 ## Histórico de Sprints
 
@@ -44,8 +51,9 @@
 | 9 | Validação de pagamento na matrícula, conclusão automática de curso, Celery configurado¹, rate limiting | ✅ |
 | 10 | Gunicorn, Nginx, /api/health/, GitHub Actions CI | ✅ |
 | 11 | Deploy VPS, SSL, go-live, backup offsite (B2 + rclone), UptimeRobot | ✅ |
-| 12 | Stripe live, limpeza de dados, API production-ready | 🔄 |
+| 12 | Stripe live, limpeza de dados, API production-ready | ⏸️ Pausado (arquivado) |
 | — | Server optimization: bot blocking, memory limits, swap, log rotation (2026-05-26) | ✅ |
+| — | Auditoria 2026-06 — remediação Blocking+Major (81→98 achados com follow-ups) | ✅ (0 Major abertos, 10 Minor restantes) |
 
 > Detalhes por sprint em `.claude/context/tasks/archive/`
 

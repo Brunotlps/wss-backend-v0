@@ -39,7 +39,9 @@ the layer/phase sequencing. Read-only — it reports and recommends, it does not
      echo "theme:$t closed=$c open=$o"
    done
    ```
-   Reference totals (all `severity:*` issues are labeled): **Blocking 16 · Major 37 · Minor 28**.
+   Reference totals as of 2026-07-04 (all `severity:*` issues are labeled; grows over time as
+   follow-up findings get filed): **Blocking 18 · Major 42 · Minor 36** (original 81 findings +
+   follow-ups). Don't hardcode these — always pull fresh counts with the commands above.
 2. **Render progress**: a table of Blocking by theme (closed/total) and overall Major/Minor counts.
 3. **Recommend the next slice** using `00-plan.md`:
    - Honor phase order — never recommend a Phase-1 item whose Phase-0 dependency
