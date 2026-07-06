@@ -9,7 +9,11 @@ from rest_framework.throttling import AnonRateThrottle
 
 import pytest
 
-from apps.users.throttles import OAuthRateThrottle, RegistrationThrottle
+from apps.users.throttles import (
+    OAuthExchangeRateThrottle,
+    OAuthRateThrottle,
+    RegistrationThrottle,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -147,3 +151,54 @@ class TestGoogleOAuthThrottling:
 
         response = api_client.get(self.URL)
         assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+
+
+@pytest.mark.django_db
+class TestGoogleOAuthExchangeThrottling:
+    """Rate limiting on POST /api/auth/google/exchange/ (#155).
+
+    The exchange endpoint must use its own scope, not the shared ``oauth``
+    bucket (login-init + callback) — otherwise a full login already spends
+    ~3 of the 20/hour budget, and exchange-guessing traffic from the same IP
+    would erode the allowance that gates legitimate callbacks.
+    """
+
+    EXCHANGE_URL = reverse("google-token-exchange")
+    LOGIN_URL = reverse("google-login")
+
+    def test_oauth_exchange_throttle_rate_is_20_per_hour(self):
+        """Exchange throttle is configured at 20/hour, its own scope."""
+        assert OAuthExchangeRateThrottle().rate == "20/hour"
+        assert OAuthExchangeRateThrottle().scope == "oauth-exchange"
+
+    def test_exchange_is_throttled_independently_of_oauth_scope(self, api_client):
+        """Repeated exchange attempts beyond the limit return 429, isolated
+        from the ``oauth`` (login-init/callback) bucket."""
+        for _ in range(20):
+            response = api_client.post(
+                self.EXCHANGE_URL, {"code": "bad-code"}, format="json"
+            )
+            assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        response = api_client.post(
+            self.EXCHANGE_URL, {"code": "bad-code"}, format="json"
+        )
+        assert response.status_code == status.HTTP_429_TOO_MANY_REQUESTS
+
+    def test_exchange_traffic_does_not_erode_oauth_login_budget(
+        self, api_client, monkeypatch
+    ):
+        """Exhausting the exchange bucket must leave the login-init (``oauth``
+        scope) budget from the same IP fully intact."""
+        monkeypatch.setattr(
+            "apps.users.services.google_oauth.GoogleOAuthService."
+            "get_authorization_url",
+            lambda self, request: "https://accounts.google.com/o/oauth2/auth",
+        )
+
+        for _ in range(20):
+            api_client.post(self.EXCHANGE_URL, {"code": "bad-code"}, format="json")
+
+        for _ in range(20):
+            response = api_client.get(self.LOGIN_URL)
+            assert response.status_code == status.HTTP_302_FOUND

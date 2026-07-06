@@ -220,6 +220,10 @@ REST_FRAMEWORK = {
         "login": "5/hour",
         "register": "5/day",
         "oauth": "20/hour",
+        # Dedicated scope for the code-exchange endpoint (#155) — isolated from
+        # "oauth" (login-init/callback) so exchange-guessing traffic cannot
+        # erode the budget that gates legitimate callbacks from the same IP.
+        "oauth-exchange": "20/hour",
         "verify": "20/min",
         "health": "120/min",
         # Protected video streaming: a <video> element fires many Range requests

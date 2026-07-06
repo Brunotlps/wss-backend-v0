@@ -102,6 +102,13 @@ class GoogleOAuthService:
         JWT pair in the redirect URL (#43). Redeemed once via
         ``consume_exchange_code``.
 
+        A read-after-write check confirms the code actually persisted. With
+        ``DJANGO_REDIS_IGNORE_EXCEPTIONS=True`` (prod), a Redis outage makes
+        ``cache.set`` silently no-op; without this check, the failure would
+        only surface later as "invalid or expired code" at exchange time —
+        indistinguishable from a genuine bad code (#155). Detecting it here
+        instead gives on-call a clear infra signal.
+
         Args:
             user: The authenticated user the code grants tokens for.
 
@@ -109,11 +116,16 @@ class GoogleOAuthService:
             The opaque authorization code (URL-safe).
         """
         code = secrets.token_urlsafe(32)
-        cache.set(
-            f"{_EXCHANGE_CODE_PREFIX}{code}",
-            user.id,
-            timeout=_EXCHANGE_CODE_TTL_SECONDS,
-        )
+        key = f"{_EXCHANGE_CODE_PREFIX}{code}"
+        cache.set(key, user.id, timeout=_EXCHANGE_CODE_TTL_SECONDS)
+
+        if cache.get(key) != user.id:
+            logger.error(
+                "OAuth exchange code did not persist for user %s — suspected "
+                "cache/Redis outage, not a bad code.",
+                user.id,
+            )
+
         return code
 
     def consume_exchange_code(self, code: str) -> "User | None":
