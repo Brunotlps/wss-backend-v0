@@ -12,7 +12,7 @@
 
 ## Issues & fixes
 
-### Certificate as an immutable, durable legal document — #77 (Blocking)
+### Certificate as an immutable, durable legal document — #77 (Blocking) ✅ FIXED (PR #108, 2026-06-18)
 Denormalize a snapshot at issue time so the document survives edits/deletes of its sources.
 
 ```python
@@ -32,7 +32,7 @@ class Certificate(TimeStampedModel):
 ```
 Model properties prefer the stored snapshot. Migration: backfill snapshot for existing rows.
 
-### Verification code — crypto + entropy — #75 (Blocking)
+### Verification code — crypto + entropy — #75 (Blocking) ✅ FIXED (PR #107, 2026-06-18)
 ```python
 import secrets
 ALPHABET = string.ascii_uppercase + string.digits
@@ -45,10 +45,10 @@ def generate_certificate_code() -> str:
 ```
 (Generation moves into the task — see `06`. Decouple code from the stored filename — see `01`.)
 
-### `is_valid` overload — #73 (Blocking)
+### `is_valid` overload — #73 (Blocking) ✅ FIXED (PR #107, 2026-06-18)
 Model owns the field split (above); task owns the guard (`if certificate.pdf_file:`) in `06`.
 
-### Slug collision → 500 — #68 (courses, Major)
+### Slug collision → 500 — #68 (courses, Major) ✅ FIXED (PR #125, 2026-06-22)
 Unique-suffix loop; decide `allow_unicode` deliberately; surface 400 (not 500) on collision.
 ```python
 base = slugify(self.title); slug = base; i = 2
@@ -57,19 +57,23 @@ while Course.objects.filter(slug=slug).exclude(pk=self.pk).exists():
 self.slug = slug
 ```
 
-### Validator i18n + missing separators — #62 (videos, Minor, has a real text bug)
+### Validator i18n + missing separators — #62 (videos, Minor, has a real text bug) — ⬜ OPEN
 `_("...type. ") + _("Make sure...")` — add the missing space; use `%(x)s` not `_(f"...")`.
 
-### Misc — #24 (payments admin: `status` editable on financial record → make read-only or audit),
-#85 (certificates: drop redundant index on `certificate_code`; `timezone.now()` not naive `today()`).
+### Misc — #24 (payments admin: `status` editable on financial record → make read-only or audit) — ⬜ OPEN,
+#85 (certificates: drop redundant index on `certificate_code`; `timezone.now()` not naive `today()`) — ⬜ OPEN.
 
-### `is_active` semantics — #32† (enrollments, Major)
-Model/field decision (block access? pause progress?) — define here, enforce in `04`/`06`.
+### `on_delete=CASCADE` on Certificate.enrollment — #38 (certificates, Minor) — ⬜ OPEN
+Deleting an enrollment currently destroys the issued certificate; change to `SET_NULL`/`PROTECT`.
+
+### `is_active` semantics — #32† (enrollments, Major) ✅ RESOLVED (PR #211, 2026-07-04)
+Decided: blocks video access (already true) + progress writes + auto-completion; certificate
+already issued is not retroactively revoked. See `04-permissions.md`.
 
 ## Done criteria
-- [ ] Certificate renders from its own snapshot; editing source course/user does not change an
-      issued certificate or its verification response.
-- [ ] Deleting an enrollment no longer deletes the certificate (FK `SET_NULL`/`PROTECT`).
-- [ ] Codes are `secrets`-based, ≥12 secret chars, collision-safe.
-- [ ] Slug collisions return 400; money fields use `Decimal` end-to-end (see `06` #14).
-- [ ] Migrations reviewed (project rule: ask before makemigrations).
+- [x] Certificate renders from its own snapshot; editing source course/user does not change an
+      issued certificate or its verification response. — #77.
+- [ ] Deleting an enrollment no longer deletes the certificate (FK `SET_NULL`/`PROTECT`). — #38 still open.
+- [x] Codes are `secrets`-based, ≥12 secret chars, collision-safe. — #75.
+- [x] Slug collisions return 400; money fields use `Decimal` end-to-end (see `06` #14). — #68 + #14.
+- [x] Migrations reviewed (project rule: ask before makemigrations). — followed consistently across all slices.

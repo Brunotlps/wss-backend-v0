@@ -21,7 +21,7 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
 
 ## Issues & fixes
 
-### Anonymous PII exposure — #41 (Blocking, root cause)
+### Anonymous PII exposure — #41 (Blocking, root cause) ✅ FIXED (Phase 0/1, PRs #102/#103, 2026-06-18)
 - Add `has_permission` (above) to `IsOwnerOrReadOnly`.
 - Compose `[IsAuthenticated, IsOwnerOrReadOnly]` on `UserViewSet`/`ProfileViewSet`.
 - Re-evaluate the global default `DEFAULT_PERMISSION_CLASSES = IsAuthenticatedOrReadOnly`
@@ -30,7 +30,7 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
   certificate verification).
 - Non-owners get a public-fields-only serializer (no email/phone/birth_date) — see `03`.
 
-### Video gating bypass — #55, #56 (Blocking)
+### Video gating bypass — #55, #56 (Blocking) ✅ FIXED (Phase 0/1, PR #99, 2026-06-17)
 - #55: apply an enrollment-aware permission on `VideoViewSet` (today only `LessonViewSet` has
   `IsEnrolled`), or stop returning `file` to non-enrolled users.
 - #56: gate preview on `getattr(obj, "is_free_preview", False)` for Lessons and
@@ -60,9 +60,9 @@ validated in prod. See `.claude/context/backlog/2026-07-04-enrollments-is-active
 - #41 first (Phase 0) — unblocks the users app and the `privilege-pii` theme.
 - #55/#56 must land with the protected media view (`01`) so the bypass doesn't just relocate.
 
-## Done criteria
-- [ ] Anonymous `GET /api/users/` and `/api/profiles/` → 401/403; non-owner cannot read PII.
-- [ ] Non-enrolled user cannot retrieve non-preview video metadata or file via **any** endpoint.
-- [ ] Preview access derives from `is_free_preview`, not `order`.
-- [ ] Permission classes raise 403 via `PermissionDenied`, no instance mutation.
-- [ ] Allow + deny tests for each (owner / other / anonymous / enrolled / preview).
+## Done criteria — ✅ ALL DONE (Blocking #41/#55/#56 in Phase 0/1 2026-06-18; Major #58/#32 2026-07-04)
+- [x] Anonymous `GET /api/users/` and `/api/profiles/` → 401/403; non-owner cannot read PII. — #41.
+- [x] Non-enrolled user cannot retrieve non-preview video metadata or file via **any** endpoint. — #55/#56.
+- [x] Preview access derives from `is_free_preview`, not `order`. — #56.
+- [x] Permission classes raise 403 via `PermissionDenied`, no instance mutation. — #58 (PR #207).
+- [x] Allow + deny tests for each (owner / other / anonymous / enrolled / preview). — #50 (07-tests).

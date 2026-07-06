@@ -3,7 +3,19 @@
 **Sprint:** 12
 **Start Date:** 2026-04-27
 **Branch:** claude-edits
-**Status:** 🔄 Em planejamento
+**Status:** ⏸️ Pausado/superado — arquivado em 2026-07-04, nunca concluído
+
+---
+
+**Nota de arquivamento (2026-07-04):** este sprint foi pausado antes da Fase 1 (Stripe live)
+rodar — a prioridade do projeto virou a remediação da auditoria 2026-06 (Blocking → Major → Minor),
+que consumiu todo o ciclo de 2026-06-18 a 2026-07-04 e foi feita direto em `main` via branches
+`fix/*`/`docs/*`, não na branch `claude-edits` referenciada aqui. Nenhuma fase deste sprint foi
+concluída: Fase 1 (Stripe live) e Fase 2 (limpeza de dados de teste) nunca rodaram; Fase 3 ficou
+parcial (3.2 e 3.5 feitas, **3.4 staging tem trabalho real não mergeado na branch `claude-edits`**
+— `docker-compose.staging.yml`/`.env.staging.example`/`nginx.staging.conf` — mantida, não apagada
+na limpeza de branches de 2026-07-04). Retomar quando a ativação do Stripe live voltar a ser
+prioridade.
 
 ---
 

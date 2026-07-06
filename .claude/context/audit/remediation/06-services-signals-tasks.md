@@ -19,7 +19,7 @@
 
 ## Payments
 
-### Double-charge — #12 (Blocking)
+### Double-charge — #12 (Blocking) ✅ FIXED (PR #106, 2026-06-18)
 Deterministic idempotency + dedup of pending intents.
 ```python
 intent = stripe.PaymentIntent.create(
@@ -31,7 +31,7 @@ intent = stripe.PaymentIntent.create(
 On a duplicate `succeeded` webhook for an already-enrolled user → log ERROR/alert, consider
 auto-refund.
 
-### Webhook robustness
+### Webhook robustness — #13/#14/#18/#27 ✅ FIXED (PR #142, 2026-06-26), #16 ✅ FIXED (PRs #144/#146, 2026-06-26), #23 ✅ FIXED (PR #148, 2026-06-26)
 - #13: race-safe idempotency — `Payment.objects.get_or_create(stripe_payment_intent_id=...)` or
   catch `IntegrityError` (don't 500).
 - #14: `amount = Decimal(payment_intent["amount"]) / 100` (no float).
@@ -41,14 +41,14 @@ auto-refund.
 - #27: defense-in-depth — warn/refuse when paid amount/currency diverges from `course.price`.
 - #23: fail-fast on empty `STRIPE_*` / `GOOGLE_OAUTH_*` keys in `settings/production.py`.
 
-## Users / OAuth (services/google_oauth.py)
+## Users / OAuth (services/google_oauth.py) — #43/#44/#47 ✅ FIXED (PRs #152/#154/#157, 2026-06-27~29)
 - #43: stop returning JWTs in the URL fragment — issue a single-use code (Redis, short TTL) +
   `POST /api/auth/google/exchange/` returning the pair in the body (or httpOnly refresh cookie).
 - #44: `request.session.pop("google_oauth_state"/"nonce")` after validation (single-use).
 - #47: keep the `email_verified` gate; add a security-log entry when linking to an existing local
   account with a usable password; consider extra confirmation.
 
-## Enrollments / Certificates signals & tasks
+## Enrollments / Certificates signals & tasks — ✅ FIXED (PR #105 for #29, PR #149 for #79/#80/#73/#78, 2026-06-18~27)
 - #29† defensive: completion signal counts only `lesson_progress` where
   `lesson__course == enrollment.course` (validation primary fix is in `03`).
 - #79: certificate creation signal → `Certificate.objects.get_or_create(enrollment=...)`
@@ -61,10 +61,10 @@ auto-refund.
   `pdf_generation_failed_at` in admin `list_filter`.
 
 ## Done criteria
-- [ ] Two concurrent checkouts / duplicate webhooks never double-charge or double-record; dup is
-      logged/alerted.
-- [ ] Webhook handler returns 200 on non-retryable events; money stored as exact `Decimal`.
-- [ ] No JWT in URL; OAuth state/nonce are single-use; linking is audit-logged.
-- [ ] Certificate creation is idempotent under concurrency; task no-ops when PDF exists; final
-      failure is alerted and visible in admin.
-- [ ] Tests cover each branch (see `07`: #17 signature, #82 task/utils).
+- [x] Two concurrent checkouts / duplicate webhooks never double-charge or double-record; dup is
+      logged/alerted. — #12/#13.
+- [x] Webhook handler returns 200 on non-retryable events; money stored as exact `Decimal`. — #18/#14.
+- [x] No JWT in URL; OAuth state/nonce are single-use; linking is audit-logged. — #43/#44/#47.
+- [x] Certificate creation is idempotent under concurrency; task no-ops when PDF exists; final
+      failure is alerted and visible in admin. — #79/#73/#78.
+- [x] Tests cover each branch (see `07`: #17 signature, #82 task/utils). — both closed.

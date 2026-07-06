@@ -41,7 +41,8 @@ Add return annotations + Google-style docstrings where missing:
   the opening commit of each app's PR if you prefer a clean diff. Don't mix auto-format with logic
   changes in the same commit.
 
-## Done criteria
-- [ ] `flake8 apps/ config/` clean; `black --check` and `isort --check-only` pass repo-wide.
-- [ ] All public signatures have type hints; public methods have Google-style docstrings.
-- [ ] No commented-out code, no dead config, no duplicated version string.
+## Done criteria — ✅ ALL DONE (2026-07-02~03, 8 apps + hygiene, no deploy)
+- [x] `flake8 apps/ config/` clean; `black --check` and `isort --check-only` pass repo-wide.
+- [x] All public signatures have type hints; public methods have Google-style docstrings.
+- [x] No commented-out code, no dead config, no duplicated version string. — #91/#195 (dead
+      `default_app_config` + `APP_VERSION` de-dup), #53 (dead commented block in users).

@@ -30,9 +30,11 @@ App-specific files: `filters.py` (courses, videos, enrollments) ·
 
 ## Status
 
-**Sprint 11 complete. Sprint 12 in progress. Production live at https://api.nousflow.com.br**
+**Sprint 11 complete. 2026-06 audit remediation complete for Blocking + Major (0 open); 10 Minor
+findings remain. Sprint 12 paused (see `.claude/context/tasks/archive/sprint-12.md`). Production
+live at https://api.nousflow.com.br**
 
-- 340 tests passing; CI (GitHub Actions) gates merges with a lint + migration-drift check (flake8/black/isort) and the pytest suite on PostgreSQL + Redis, coverage enforced ≥80%
+- 578 tests passing, 98% coverage; CI (GitHub Actions) gates merges with a lint + migration-drift check (flake8/black/isort) and the pytest suite on PostgreSQL + Redis, coverage enforced ≥80%
 - All features implemented: auth (JWT + Google OAuth), courses/modules/lessons, videos, enrollments, certificates, payments
 - Celery active (certificate PDF generation)
 - Docker Compose on VPS DigitalOcean (NYC1), 1.9GB RAM, 48GB disk
@@ -87,4 +89,4 @@ python3 manage.py shell_plus
 - `.claude/rules/` — coding conventions (code-style, django-patterns, security, testing, api-conventions)
 - `.claude/agents/code-reviewer.md` — layer-by-layer code review sub-agent
 - `.claude/context/` — architecture.md, tech-stack.md, current-sprint.md
-- `.claude/context/tasks/` — backlog.md, sprint-12.md; `archive/` holds completed sprints + server-optimization-2026-05-26.md
+- `.claude/context/tasks/` — backlog.md; `archive/` holds completed/paused sprints (incl. sprint-12.md) + server-optimization-2026-05-26.md

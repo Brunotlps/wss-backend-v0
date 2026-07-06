@@ -59,7 +59,7 @@ class VideoFileView(APIView):
 
 ## Done criteria
 
-- [ ] Anonymous/non-enrolled GET of a video/certificate file URL → 401/403 (not the bytes).
-- [ ] No raw `/media/...` path is reachable without going through the authenticated view.
-- [ ] Serializers no longer return a directly-fetchable media URL to non-owners.
-- [ ] Tests: enrolled user downloads OK; non-enrolled denied; revoked certificate denied (#81).
+- [x] Anonymous/non-enrolled GET of a video/certificate file URL → 401/403 (not the bytes). — #54/#74, PR #99, deployed+validated 2026-06-17.
+- [x] No raw `/media/...` path is reachable without going through the authenticated view. — `/media/videos/` and `/media/certificates/` are `internal` in nginx.conf.
+- [x] Serializers no longer return a directly-fetchable media URL to non-owners. — `stream_url`/`download_url` only, both gated.
+- [x] Tests: enrolled user downloads OK; non-enrolled denied; revoked certificate denied (#81). — #81 (revoked → 410) shipped PR #134, 2026-06-23~25.
