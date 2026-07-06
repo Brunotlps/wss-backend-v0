@@ -82,24 +82,36 @@ Phase 3 — Hardening & hygiene
     (PR #203, `videos/0005` AddIndex×3) + #190 `updated_at` help_text (abstract base → AlterField in 6 apps) +
     #200 `User.email/phone` verbose_name (PR #204). One `migrate`: 1 index + 7 metadata-only (`sqlmigrate`=no-op).
     Sequential merges (avoid migration-number collision). Slice docs `2026-07-03-*.md`.
-- **⚠️ STILL OPEN — audit findings NOT yet remediated (surfaced by a consistency sweep 2026-07-04).**
-  The pre-2026-07-04 Status wrongly implied the audit was nearly done. Reality: the **`04-permissions`
-  layer's Major issues were never scheduled** (only its Blocking #41/#55/#56 were done in Phase 0/1), plus
-  several Minors remain. Verified present in code on 2026-07-04:
-  - **Major (5):** #58 videos (`IsEnrolled` mutates `self.message` — thread-safety; `permissions.py:195`) ·
-    #59 videos (`IsEnrolled` has no list gating → non-enrolled see all lesson metadata; **product decision**) ·
-    #32 enrollments (`is_active=False` semantics undefined; **decision + test + field doc**) · #33 enrollments
-    (cache invalidation bypassed by `queryset.update()`/bulk; **latent**, no mass-update today) · #136
-    payments (`PaymentIntentRateThrottle` shares the global `user` bucket; same defect #57 fixed for uploads).
-  - **Minor (10):** #85 certificates (error envelope `{"error"}`→`{"detail"}` = **frontend contract** +
-    redundant index + naive datetime) · #62 videos **bug** (f-string inside `_()` gettext breaks i18n,
-    `validators.py:56/98/110`; + 2 messages missing a separator) · #24 payments (admin allows silent Payment
-    `status` edits) · #25 payments (dead `PaymentIntentResponseSerializer`) · #38 cert `on_delete=CASCADE` ·
-    #122 courses (module serializer 400→403) · #151 infra (healthcheck 301) · #155 users (OAuth exchange
-    hardening) · #180 enrollments (123-char f-string) · #183 infra (venv shebangs).
-  - **Counts:** Blocking 0/18 · Major 5/42 open · Minor 10/36 open. No pre-decided "next slice" — the open
-    items mix product decisions (#32/#59), correctness/security fixes (#58/#136/#62), dead code (#25/#24),
-    and a frontend contract (#85). Run `/audit-status` and recommend per severity/layer.
+- **✅ Majors from the consistency sweep — ALL RESOLVED (2026-07-04).** The sweep found the
+  `04-permissions` layer's Major issues had never been scheduled (only Blocking #41/#55/#56 were
+  done in Phase 0/1). All 5 residual Majors closed same-day:
+  - **#58** videos — `IsEnrolled` self.message mutation → `raise PermissionDenied`. **FIXED, PR #207.**
+  - **#136** payments — `PaymentIntentRateThrottle` shared the global `user` bucket → dedicated
+    `payment_intent` scope (same pattern as #57). **FIXED, PR #209.**
+  - **#32** enrollments — `is_active=False` semantics: decided to block video (already true) +
+    progress writes + auto-completion; certificate already issued is not retroactively revoked.
+    Real gap found: a refunded student could still complete lessons and trigger certificate
+    generation. **FIXED, PR #211.** See `04-permissions.md`.
+  - **#59** videos — list visibility (non-enrolled sees lesson metadata for published courses).
+    **RESOLVED as documented decision** (catalog browsing intentional, same rationale as #72; no
+    file-byte leak, only metadata — bytes stay gated by `IsEnrolled` at the file endpoint). No
+    code change. See `04-permissions.md`.
+  - **#33** enrollments — cache invalidation bypassed by bulk `.update()`/`bulk_create`.
+    **RESOLVED as documented decision** — no bulk call site exists on `Enrollment` today
+    (verified by grep); the constraint is now documented on the model docstring rather than
+    building unused robustness for a hypothetical bulk write path.
+  - All fixes deployed + validated in prod. Docs: `.claude/context/backlog/2026-07-04-*.md`.
+
+- **Remaining — Minor (10), no Major left open.** #85 certificates (error envelope
+  `{"error"}`→`{"detail"}` = **frontend contract** + redundant index + naive datetime) · #62 videos
+  **bug** (f-string inside `_()` gettext breaks i18n, `validators.py:56/98/110`; + 2 messages
+  missing a separator) · #24 payments (admin allows silent Payment `status` edits) · #25 payments
+  (dead `PaymentIntentResponseSerializer`) · #38 cert `on_delete=CASCADE` · #122 courses (module
+  serializer 400→403) · #151 infra (healthcheck 301) · #155 users (OAuth exchange hardening) ·
+  #180 enrollments (123-char f-string) · #183 infra (venv shebangs).
+  - **Counts:** Blocking 0/18 · Major 0/42 open · Minor 10/36 open. Run `/audit-status` and
+    recommend per severity/layer — remaining items mix dead-code (#25/#24), a frontend contract
+    (#85), mechanical style fixes (#180/#183), and small correctness bugs (#62/#122/#151/#155/#38).
 
 ## Working agreement (per project rules)
 

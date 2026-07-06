@@ -37,14 +37,24 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
   `obj.lesson.is_free_preview` for Videos. **Drop the `order == 1` heuristic.**
 
 ### `IsEnrolled` hardening — #58, #59 (videos, Major)
-- #58: replace `self.message = ...` side-effect with `raise PermissionDenied(detail=...)`
-  (thread-safety; avoids leaking another course's title).
-- #59: decide list visibility — `IsEnrolled` only has `has_object_permission`, so list leaks all
-  lesson metadata of published courses. Restrict the queryset/serializer for non-enrolled users.
+- **#58 ✅ FIXED (2026-07-04, PR #207).** Replaced `self.message = ...` side-effect with
+  `raise PermissionDenied(detail=...)` (thread-safety; avoids leaking another course's title into
+  a reused permission instance). Deployed + validated in prod.
+- **#59 ✅ RESOLVED as a documented product decision (2026-07-04) — no code change.** List
+  visibility (`GET /api/lessons/`) exposing metadata (title/order/duration/thumbnail/
+  is_free_preview) to non-enrolled users for published courses is **intentional catalog
+  browsing**, same rationale as #72 (`is_published` kept in list). No leak of file bytes:
+  `LessonListSerializer`/`VideoListSerializer` never expose the raw file, only a `stream_url`
+  pointing at `/api/videos/{id}/file/`, which is itself gated by `IsEnrolled` at the object/file
+  level (#54/#55/#56). `IsEnrolled` correctly stays object-permission-only; list is a catalog
+  view by design.
 
 ### `is_active=False` enforcement — #32† (enrollments, Major)
-Once the model semantics are decided (`02`), make `IsEnrolled` honor them consistently across
-video access and progress.
+**✅ FIXED (2026-07-04, PR #211).** Decision: `is_active=False` blocks video access (already true
+via `IsEnrolled`) **and** blocks new progress writes / course auto-completion
+(`LessonProgressSerializer.validate()` + `check_course_completion` signal, defense-in-depth).
+A certificate already issued before deactivation is **not** retroactively revoked. Deployed +
+validated in prod. See `.claude/context/backlog/2026-07-04-enrollments-is-active-semantics-32.md`.
 
 ## Order / dependencies
 - #41 first (Phase 0) — unblocks the users app and the `privilege-pii` theme.
