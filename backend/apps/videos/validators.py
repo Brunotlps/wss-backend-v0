@@ -54,10 +54,14 @@ def validate_video_size(file: File) -> None:
         current_size_mb = file_size / (1024 * 1024)
         raise ValidationError(
             _(
-                f"Very large file: {current_size_mb:.1f}MB. "
-                f"Maximum size allowed: {max_size_mb:.0f}MB (2GB)."
+                "Very large file: %(current_size)sMB. "
+                "Maximum size allowed: %(max_size)sMB (2GB)."
             ),
             code="file_too_large",
+            params={
+                "current_size": f"{current_size_mb:.1f}",
+                "max_size": f"{max_size_mb:.0f}",
+            },
         )
 
 
@@ -89,17 +93,18 @@ def validate_video_mimetype(file: File) -> None:
         mime_type = magic.from_buffer(file_head, mime=True)
     except Exception:
         raise ValidationError(
-            _("Unable to determine file type." "Make sure you upload a valid video."),
+            _("Unable to determine file type. Make sure you upload a valid video."),
             code="mime_detection_failed",
         )
 
     if mime_type not in ALLOWED_VIDEO_MIMETYPES:
         raise ValidationError(
-            _(
-                f"Invalid file type: {mime_type}. "
-                f'Allowed types: {", ".join(ALLOWED_VIDEO_MIMETYPES)}.'
-            ),
+            _("Invalid file type: %(mime_type)s. Allowed types: %(allowed_types)s."),
             code="invalid_mimetype",
+            params={
+                "mime_type": mime_type,
+                "allowed_types": ", ".join(ALLOWED_VIDEO_MIMETYPES),
+            },
         )
 
 
@@ -107,9 +112,6 @@ def validate_video_mimetype(file: File) -> None:
 # Checks file extension against whitelist (case-insensitive)
 validate_video_extension = FileExtensionValidator(
     allowed_extensions=ALLOWED_VIDEO_EXTENSIONS,
-    message=_(
-        f"Invalid file extension"
-        f'Allowed extensions: {", ".join(ALLOWED_VIDEO_EXTENSIONS)}.'
-    ),
+    message=_("Invalid file extension. Allowed extensions: %(allowed_extensions)s."),
     code="invalid_extension",
 )

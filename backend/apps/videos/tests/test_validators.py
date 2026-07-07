@@ -51,6 +51,15 @@ class TestValidateVideoSize:
         message = str(exc_info.value.message)
         assert "MB" in message
 
+    def test_error_message_substitutes_computed_sizes(self):
+        """The %(current_size)s/%(max_size)s params render actual values."""
+        f = make_file(size=MAX_VIDEO_SIZE + 1024 * 1024)
+        with pytest.raises(ValidationError) as exc_info:
+            validate_video_size(f)
+        message = exc_info.value.messages[0]
+        assert "Very large file: 2049.0MB." in message
+        assert "Maximum size allowed: 2048MB (2GB)." in message
+
 
 class TestValidateVideoMimetype:
     """Tests for validate_video_mimetype."""
@@ -97,6 +106,27 @@ class TestValidateVideoMimetype:
         assert exc_info.value.code == "mime_detection_failed"
 
     @patch("apps.videos.validators.magic.from_buffer")
+    def test_mime_detection_failure_message_has_separator(self, mock_magic):
+        """Sentences in the message are separated by a space, not glued."""
+        mock_magic.side_effect = Exception("libmagic error")
+        f = make_file()
+        with pytest.raises(ValidationError) as exc_info:
+            validate_video_mimetype(f)
+        message = exc_info.value.messages[0]
+        assert "type. Make sure" in message
+
+    @patch("apps.videos.validators.magic.from_buffer")
+    def test_invalid_mimetype_message_names_detected_type(self, mock_magic):
+        """Message reports the detected MIME type with correct spacing."""
+        mock_magic.return_value = "text/plain"
+        f = make_file("fake_video.mp4", b"this is not a video")
+        with pytest.raises(ValidationError) as exc_info:
+            validate_video_mimetype(f)
+        message = exc_info.value.messages[0]
+        assert "Invalid file type: text/plain." in message
+        assert "Allowed types: video/mp4" in message
+
+    @patch("apps.videos.validators.magic.from_buffer")
     def test_file_pointer_reset_after_validation(self, mock_magic):
         """File seek position is reset to 0 after MIME check."""
         mock_magic.return_value = "video/mp4"
@@ -129,6 +159,14 @@ class TestValidateVideoExtension:
         with pytest.raises(ValidationError) as exc_info:
             validate_video_extension(f)
         assert exc_info.value.code == "invalid_extension"
+
+    def test_invalid_extension_message_has_separator(self):
+        """Sentences in the message are separated by a space, not glued."""
+        f = SimpleUploadedFile("video.avi", b"", content_type="video/avi")
+        with pytest.raises(ValidationError) as exc_info:
+            validate_video_extension(f)
+        message = exc_info.value.messages[0]
+        assert "extension. Allowed extensions: mp4, webm, mov." in message
 
     def test_exe_extension_raises(self):
         """EXE extension is rejected."""
