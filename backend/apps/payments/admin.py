@@ -24,11 +24,14 @@ class PaymentAdmin(admin.ModelAdmin):
         "course__title",
         "stripe_payment_intent_id",
     ]
+    # status is driven exclusively by the Stripe webhook lifecycle (services.py);
+    # editing it here would silently desync it from the actual Stripe state.
     readonly_fields = [
         "user",
         "course",
         "amount",
         "currency",
+        "status",
         "stripe_payment_intent_id",
         "created_at",
         "updated_at",
