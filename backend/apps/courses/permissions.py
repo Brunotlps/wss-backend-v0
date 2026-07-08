@@ -140,6 +140,22 @@ class IsModuleCourseInstructorOrReadOnly(BasePermission):
     protection — its existence isn't secret — but folding it into the same
     403 keeps the rule simple and avoids two different queries to tell the
     cases apart.
+
+    On ``update``/``partial_update`` there IS an object, but
+    ``has_object_permission`` only sees the module's *current* course by
+    default — a ``course`` key in the write payload would reassign the
+    module to a different course, and ``ModuleSerializer.course`` has no
+    queryset restriction of its own. So ``has_object_permission`` applies
+    the same ownership rule to a ``course`` value present in the request
+    body as ``has_permission`` does on create (#237): denies with 403
+    whether that target course is nonexistent, hidden, or owned by someone
+    else, and — critically — never lets the write reach the serializer in
+    any of those cases, so there's no second path for the reassignment to
+    slip through. One difference from create: ``Module.course`` isn't
+    nullable, so there's no missing-course-id case to let through as a 400
+    here — an explicit ``course: null`` resolves like any other id that
+    doesn't exist (403), not the required-field 400 a missing key would
+    give on create.
     """
 
     def has_permission(self, request, view):
@@ -169,4 +185,22 @@ class IsModuleCourseInstructorOrReadOnly(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
             return True
-        return obj.course.instructor == request.user
+        if obj.course.instructor != request.user:
+            return False
+
+        # Same rule as create (#223): a write reassigning `course` to one
+        # the requester doesn't own denies with 403 whether that course
+        # exists, is hidden, or is publicly visible — never falls through
+        # to the serializer, which would otherwise apply its unfiltered
+        # queryset and let the reassignment actually happen (#237).
+        if "course" in request.data:
+            try:
+                new_course = Course.objects.get(pk=request.data["course"])
+            except (ValueError, TypeError):
+                return True
+            except Course.DoesNotExist:
+                return False
+            if new_course.instructor != request.user:
+                return False
+
+        return True
