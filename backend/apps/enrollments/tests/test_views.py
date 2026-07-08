@@ -418,7 +418,12 @@ class TestLessonProgressViewSet:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
     def test_create_progress_watched_exceeds_duration_returns_400(self, auth_client):
-        """watched_duration greater than the lesson duration is rejected."""
+        """watched_duration greater than the lesson duration is rejected.
+
+        The message is wrapped across lines in the serializer (#180) purely
+        for line length; this locks the exact wording so a future reformat
+        can't silently change it.
+        """
         enrollment = EnrollmentFactory(user=auth_client.user)
         lesson = LessonFactory(course=enrollment.course, duration=10)
         response = auth_client.post(
@@ -431,6 +436,9 @@ class TestLessonProgressViewSet:
             format="json",
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.data["watched_duration"][0] == (
+            "Watched duration cannot exceed lesson duration of 10 minutes."
+        )
 
     @patch("apps.certificates.tasks.generate_certificate_pdf_async.delay")
     def test_create_completed_caps_watched_duration_to_lesson_duration(
