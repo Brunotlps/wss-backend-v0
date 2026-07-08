@@ -183,11 +183,18 @@ class TestCertificatePermissions:
 
     URL = "/api/certificates/"
 
-    def test_staff_can_see_any_certificate(self, staff_client):
-        """Staff members can retrieve any certificate."""
-        CertificateFactory()
-        # Staff queryset is still filtered (only own), but permission grants access
-        # Create own enrollment cert to verify staff access
+    def test_staff_cannot_access_other_users_certificate_via_api(self, staff_client):
+        """Staff do not get cross-user access to certificates through this API
+        (#220): support/audit access to other students' certificates happens
+        via the Django admin, not this endpoint. ``get_queryset`` filters by
+        owner for every request regardless of ``is_staff``.
+        """
+        other_cert = CertificateFactory()
+        response = staff_client.get(f"{self.URL}{other_cert.pk}/")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_staff_can_still_access_their_own_certificate(self, staff_client):
+        """Staff retrieving their own certificate is unaffected."""
         enrollment = EnrollmentFactory(user=staff_client.user)
         own_cert = CertificateFactory(enrollment=enrollment)
         response = staff_client.get(f"{self.URL}{own_cert.pk}/")
