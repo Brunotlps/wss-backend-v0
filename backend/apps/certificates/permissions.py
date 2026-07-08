@@ -10,7 +10,8 @@ Available permissions:
 
 Business Rules:
     - Students can only access their own certificates
-    - Staff members can access any certificate (audit/support)
+    - Staff/support access to other users' certificates happens via the
+      Django admin (CertificateAdmin), not this API
     - Public validation endpoint bypasses this permission
 
 Usage:
@@ -31,7 +32,11 @@ class IsCertificateOwner(BasePermission):
 
     Business Rules:
         - Student can access only certificates from their enrollments
-        - Staff members can access any certificate (for support/audit)
+        - No staff bypass here: ``CertificateViewSet.get_queryset`` filters
+          by owner for every request, so a certificate a staff member
+          doesn't own already 404s before this ever runs. Staff/support
+          access to other users' certificates goes through the Django
+          admin instead.
         - Checks: certificate.enrollment.user == request.user
 
     Usage:
@@ -65,9 +70,16 @@ class IsCertificateOwner(BasePermission):
         (download, validate_ownership), and any operation on a specific certificate.
 
         Permission Logic:
-            1. Staff members can access any certificate (unrestricted)
-            2. Regular users can only access certificates from their enrollments
-            3. Check: obj.enrollment.user == request.user
+            1. User can only access certificates from their own enrollments
+            2. Check: obj.enrollment.user == request.user
+
+        Note:
+            There is deliberately no ``is_staff`` bypass here (#220): the
+            queryset (``CertificateViewSet.get_queryset``) already filters
+            by owner for every request, staff included, so this method never
+            even runs for a certificate a staff member doesn't own —
+            ``get_object()`` 404s first. Staff/support access to other
+            users' certificates is handled by the Django admin instead.
 
         Args:
             request (Request): DRF Request object with authenticated user
@@ -78,11 +90,6 @@ class IsCertificateOwner(BasePermission):
             bool: True if user can access this certificate, False otherwise
 
         Examples:
-            # Staff member accessing any certificate
-            >>> request.user.is_staff = True
-            >>> has_object_permission(request, view, any_certificate)
-            True
-
             # Student accessing their own certificate
             >>> certificate.enrollment.user == request.user
             >>> has_object_permission(request, view, certificate)
@@ -93,10 +100,4 @@ class IsCertificateOwner(BasePermission):
             >>> has_object_permission(request, view, certificate)
             False
         """
-        # Staff members have unrestricted access (support/audit)
-        if request.user.is_staff:
-            return True
-
-        # Regular users can only access their own certificates
-        # Check if the certificate belongs to one of the user's enrollments
         return obj.enrollment.user == request.user

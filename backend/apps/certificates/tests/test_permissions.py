@@ -27,13 +27,21 @@ class TestIsCertificateOwner:
         response = auth_client.get(f"{self.URL}{other_cert.pk}/")
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
-    def test_staff_bypasses_ownership_on_validate_action(self, staff_client):
-        """Staff can validate ownership of certificates they don't own."""
-        # Staff member's own certificate
+    def test_staff_can_validate_their_own_certificate(self, staff_client):
+        """Staff validating their own certificate works (unaffected by #220)."""
         enrollment = EnrollmentFactory(user=staff_client.user)
         cert = CertificateFactory(enrollment=enrollment)
         response = staff_client.post(f"{self.URL}{cert.pk}/validate/")
         assert response.status_code == status.HTTP_200_OK
+
+    def test_staff_cannot_validate_other_users_certificate(self, staff_client):
+        """Staff do NOT get cross-user access on validate_ownership either
+        (#220): ``get_queryset`` filters by owner for every request, so a
+        certificate staff don't own 404s before any permission check runs.
+        """
+        other_cert = CertificateFactory()
+        response = staff_client.post(f"{self.URL}{other_cert.pk}/validate/")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_unauthenticated_cannot_access_certificates(self, api_client):
         """Unauthenticated users cannot list or retrieve certificates."""

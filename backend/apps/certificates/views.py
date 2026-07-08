@@ -41,7 +41,7 @@ class CertificateViewSet(viewsets.ReadOnlyModelViewSet):
     ) -> "FileResponse | Response":
         """Serve the certificate PDF directly from Django (#74, #116).
 
-        ``get_object()`` enforces ``IsCertificateOwner`` (staff or owner only).
+        ``get_object()`` enforces ``IsCertificateOwner`` (owner only; #220).
         The PDF is streamed with a ``FileResponse`` rather than an Nginx
         ``X-Accel-Redirect`` so the CORS header added by ``corsheaders`` on the
         Django response actually reaches the browser — Nginx drops it when it
