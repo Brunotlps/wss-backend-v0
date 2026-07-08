@@ -54,7 +54,7 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
 via `IsEnrolled`) **and** blocks new progress writes / course auto-completion
 (`LessonProgressSerializer.validate()` + `check_course_completion` signal, defense-in-depth).
 A certificate already issued before deactivation is **not** retroactively revoked. Deployed +
-validated in prod. See `.claude/context/backlog/2026-07-04-enrollments-is-active-semantics-32.md`.
+validated in prod. See `.claude/context/tasks/archive/audit-2026-06/slices/2026-07-04-enrollments-is-active-semantics-32.md`.
 
 ## Order / dependencies
 - #41 first (Phase 0) — unblocks the users app and the `privilege-pii` theme.

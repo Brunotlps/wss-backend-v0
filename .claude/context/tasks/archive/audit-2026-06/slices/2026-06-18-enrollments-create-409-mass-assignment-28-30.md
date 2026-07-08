@@ -3,7 +3,7 @@
 **Data:** 2026-06-18
 **Branch:** `fix/enrollments-create-409-mass-assignment`
 **PR:** #104 (squash merge → `c1dbcb9` em `main`)
-**Fase do plano:** Phase 1 — Blocking by theme · tema `transactional-integrity` (`.claude/context/audit/remediation/00-plan.md`)
+**Fase do plano:** Phase 1 — Blocking by theme · tema `transactional-integrity` (`.claude/context/tasks/archive/audit-2026-06/remediation/00-plan.md`)
 **Playbook dono:** `05-views-throttling.md` (#28) + `03-serializers.md` (#30)
 **Status:** mergeado; CI verde (lint + suíte PostgreSQL).
 

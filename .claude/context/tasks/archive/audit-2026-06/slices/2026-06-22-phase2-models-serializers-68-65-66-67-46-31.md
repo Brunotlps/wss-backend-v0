@@ -1,7 +1,7 @@
 # Slice batch: Phase 2 — camadas models + serializers (#68, #65, #66, #67, #46, #31)
 
 **Data:** 2026-06-22
-**Fase do plano:** Phase 2 — Major (`.claude/context/audit/remediation/00-plan.md`)
+**Fase do plano:** Phase 2 — Major (`.claude/context/tasks/archive/audit-2026-06/remediation/00-plan.md`)
 **Playbooks dono:** `02-models.md` (#68) · `03-serializers.md` (#65/#66/#67/#46/#31)
 **Status:** ✅ mergeado (4 PRs squash) + deployado + validado em produção (smoke 9/9).
 

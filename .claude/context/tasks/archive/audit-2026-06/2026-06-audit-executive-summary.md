@@ -123,7 +123,7 @@ the API-layer permission checks protect only JSON metadata, not the files.
 
 **Phase 1 — Blocking: 16/16 done, merged, and deployed to production on 2026-06-18** (PRs
 #102–#109, including the #73 `is_valid` backfill follow-up). Migrations `certificates 0003/0004/0005`
-applied; deploy validated. Per-slice notes in `.claude/context/backlog/2026-06-18-*.md`; deploy
+applied; deploy validated. Per-slice notes in `.claude/context/tasks/archive/audit-2026-06/slices/2026-06-18-*.md`; deploy
 runbook in `remediation/DEPLOY-blocking-batch-2026-06-18.md`.
 
 **Production-discovered bugs (NOT part of the 81 audit findings).** Manual end-to-end testing after

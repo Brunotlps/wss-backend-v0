@@ -11,20 +11,20 @@ block below as the first message of a new session.
 > PR #115), **#112** (streaming hit the anon throttle → scoped `video_stream` rate, PR #120),
 > **#114** (nginx stale upstream IP → resolver + variable proxy_pass, closed as mitigated, PR #119),
 > **#116** (cert download CORS → FileResponse, PR #117). Per-fix backlog docs in
-> `.claude/context/backlog/2026-06-2*.md`; details in memory (`project_state`, infra gotchas).
+> `.claude/context/tasks/archive/audit-2026-06/slices/2026-06-2*.md`; details in memory (`project_state`, infra gotchas).
 >
 > **Phase 2 (Major) — IN PROGRESS.** **Models + serializers layers done** (2026-06-22): #68 (slug
 > collision, PR #125), #65/#66/#67 (courses price / drop serializer authz / publish content-gate,
 > PR #126, migration `courses/0004`), #46 (email normalization, PR #123), #31 (progress-create
 > timestamps, PR #124). #45 closed as a **documented product decision** (kept message; register
-> throttled 5/day). Batch backlog: `.claude/context/backlog/2026-06-22-phase2-models-serializers-*.md`.
+> throttled 5/day). Batch backlog: `.claude/context/tasks/archive/audit-2026-06/slices/2026-06-22-phase2-models-serializers-*.md`.
 >
 > **views/throttling layer ALSO DONE** — all 6 slices merged, deployed, validated in prod
 > (2026-06-23~25): **#64** N+1 annotate counts (PR #128) · **#69** price soft-freeze + audited
 > `adjust-price` action (PR #130) · **#15** payments already-enrolled 400→409 (PR #132) · **#81**
 > certificate revoked download → 410 (PR #134) · **#57** video upload throttle 10/day, dedicated
 > `video_upload` scope (PR #137) · **#88** `/api/health/ready/` DB+cache readiness, graceful 503
-> (PR #139). Per-slice backlog docs `.claude/context/backlog/2026-06-2{3,5}-*.md`. (Note: the
+> (PR #139). Per-slice backlog docs `.claude/context/tasks/archive/audit-2026-06/slices/2026-06-2{3,5}-*.md`. (Note: the
 > Phase-0 throttling items #49/#87/#48 were already closed earlier.)
 >
 > **NEXT in Phase 2: the services/signals/tasks layer** (`06-services-signals-tasks.md`):
@@ -61,8 +61,8 @@ careful, test-first, and you never act on a production-live system without expli
 
 <ground_truth>
 Read these before acting — they are the source of truth; do not rely on memory or restate them:
-1. `.claude/context/audit/2026-06-audit-executive-summary.md` — findings, themes, recommendations.
-2. `.claude/context/audit/remediation/00-plan.md` — the master plan: layer→issues map and the
+1. `.claude/context/tasks/archive/audit-2026-06/2026-06-audit-executive-summary.md` — findings, themes, recommendations.
+2. `.claude/context/tasks/archive/audit-2026-06/remediation/00-plan.md` — the master plan: layer→issues map and the
    Phase 0→3 sequencing. Then the layer playbooks `01-infra-storage.md` … `08-lint-style.md`
    (each: canonical pattern + issues it owns + steps + done-criteria).
 3. `.claude/rules/*` — the conventions you must follow (code-style, django-patterns, security,
@@ -154,7 +154,7 @@ Use this when resuming within a session/agent that already knows the project.
 
 ```text
 Continue the audit remediation. Run `/audit-status`, then propose the next slice respecting the
-Phase 0→3 order in `.claude/context/audit/remediation/00-plan.md`. Use `/fix-issue <n>`: TDD
+Phase 0→3 order in `.claude/context/tasks/archive/audit-2026-06/remediation/00-plan.md`. Use `/fix-issue <n>`: TDD
 (deny/regression test first), minimal fix per the owning layer playbook, linters + code-reviewer
 gate, then STOP for my approval before committing. Never push; ask before migrations/edits;
 pt-BR with me, English in code/commits/PRs.

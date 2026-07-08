@@ -1,5 +1,12 @@
 # Command: Audit Remediation Status & Next Slice
 
+> **Status (2026-07-08): the 2026-06 audit remediation is fully closed** — all 81 findings
+> resolved, plus the follow-ups they surfaced (#220, #223, #237). Zero open issues in the repo.
+> This command still works (it always pulls fresh counts from GitHub, never hardcodes them), so
+> it's safe to run if a *new* audit cycle starts later — it'll just report 0/0 until new
+> `severity:*`-labeled issues exist. The historical run is archived at
+> `.claude/context/tasks/archive/audit-2026-06/`.
+
 Show progress on the 2026-06 audit remediation and recommend the next issue to tackle, respecting
 the layer/phase sequencing. Read-only — it reports and recommends, it does not edit or close.
 
@@ -10,8 +17,8 @@ the layer/phase sequencing. Read-only — it reports and recommends, it does not
 - Tracking: GitHub milestone **"Blocking Remediation"** (#1) + labels `severity:*`, `theme:*`,
   `app:*`.
 - Sequencing: the Phase 0→3 order and layer→issues map in
-  [.claude/context/audit/remediation/00-plan.md](.claude/context/audit/remediation/00-plan.md).
-- Overview: [.claude/context/audit/2026-06-audit-executive-summary.md](.claude/context/audit/2026-06-audit-executive-summary.md).
+  [.claude/context/tasks/archive/audit-2026-06/remediation/00-plan.md](.claude/context/tasks/archive/audit-2026-06/remediation/00-plan.md).
+- Overview: [.claude/context/tasks/archive/audit-2026-06/2026-06-audit-executive-summary.md](.claude/context/tasks/archive/audit-2026-06/2026-06-audit-executive-summary.md).
 
 ## What it does
 

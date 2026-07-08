@@ -1,5 +1,10 @@
 # Command: Fix Audit Issue (TDD, layer-aware)
 
+> **Status (2026-07-08): the 2026-06 audit is fully closed** (all 81 findings + 3 follow-ups
+> resolved). This workflow (playbook lookup → RED → GREEN → review → commit) is reusable for any
+> future security/quality audit, not just this one — the layer playbooks it references are
+> archived at `.claude/context/tasks/archive/audit-2026-06/remediation/`.
+
 Resolve a single GitHub issue from the 2026-06 audit, driven by the layer remediation playbooks.
 Use for any `#12`–`#92` finding. One issue (or one tight layer-slice) per run.
 
@@ -7,7 +12,7 @@ Use for any `#12`–`#92` finding. One issue (or one tight layer-slice) per run.
 
 ## Dependencies (read, don't restate)
 
-- The owning playbook in [.claude/context/audit/remediation/](.claude/context/audit/remediation/)
+- The owning playbook in [.claude/context/tasks/archive/audit-2026-06/remediation/](.claude/context/tasks/archive/audit-2026-06/remediation/)
   — find it via the layer→issues map in `00-plan.md`.
 - The canonical patterns in [.claude/rules/](.claude/rules/) cited by that playbook.
 - Project shape in `CLAUDE.md` / `.claude/context/`. Apps live in `backend/apps/<app>/`.

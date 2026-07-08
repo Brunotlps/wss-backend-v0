@@ -3,7 +3,7 @@
 **Data:** 2026-06-18
 **Branch:** `fix/users-is-instructor-mass-assignment`
 **PR:** #102 (squash merge → `2a362af` em `main`)
-**Fase do plano:** Phase 1 — Blocking by theme · tema `privilege-pii` (`.claude/context/audit/remediation/00-plan.md`)
+**Fase do plano:** Phase 1 — Blocking by theme · tema `privilege-pii` (`.claude/context/tasks/archive/audit-2026-06/remediation/00-plan.md`)
 **Playbook dono:** `03-serializers.md`
 **Status:** mergeado; CI verde (lint + suíte PostgreSQL).
 
