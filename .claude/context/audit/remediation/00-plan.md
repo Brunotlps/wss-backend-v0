@@ -122,12 +122,38 @@ Phase 3 — Hardening & hygiene
   status edits (Stripe webhook lifecycle in `services.py` is the sole source of truth). No
   migration (admin-only config).
 
-- **Remaining — Minor (3) of the original 2026-06 audit, no Major left open.** #151 infra
-  (healthcheck 301) · #180 enrollments (123-char f-string) · #183 infra (venv shebangs).
-  - **Counts:** Blocking 0/18 · Major 0/42 open · Minor 4/38 open (+ 2 new follow-ups #220/#223
-    filed during the 2026-07-06 slices, tracked separately from the original audit's count). Run
-    `/audit-status` and recommend per severity/layer — remaining items are mechanical style fixes
-    (#180/#183) and an infra fix (#151).
+- **2026-07-08 slice: #151 ✅ FIXED, deployed, validated in prod** (PR #230, doc PR #231). Backend
+  Docker healthcheck sent `X-Forwarded-Proto: https` + switched to `/api/health/ready/`. Not a
+  code bug — `SecurityMiddleware`'s redirect is correct, intentional behavior; the defect was
+  entirely in `docker-compose.yml`. Regression-lock tests added. Compose `healthcheck:` changes
+  need `--force-recreate`, not `restart`.
+
+- **2026-07-08 slice: #180 ✅ FIXED, deployed, validated in prod** (PR #232, doc PR #233). 123-char
+  f-string in `LessonProgressSerializer` wrapped via implicit concatenation, same technique as
+  #21. Pure formatting, no behavior change; test extended to lock the exact message text.
+
+- **2026-07-08 slice: #183 ✅ RESOLVED locally, closed with evidence comment (no PR — `venv/` is
+  gitignored, no repo diff possible).** Venv console-script shebangs pointed at a stale path from
+  before the project moved to `~/projects/wss-backend-v0`. Fixed by force-reinstalling the 18
+  affected packages (`--no-deps`, pinned to versions already in `requirements.txt` — zero drift).
+  `flake8`/`black`/`isort`/`pytest` now run directly without the `python -m` workaround. Doc:
+  `2026-07-08-infra-venv-shebangs-183.md`.
+
+## 🎉 2026-06 audit remediation — ALL 81 original findings resolved (2026-07-08)
+
+**Blocking 18/18 · Major 42/42 · Minor 36/36 — all closed, deployed, and validated in prod** (or
+resolved as a documented product decision, or closed locally with evidence where no repo diff
+applied). Zero items from the original audit remain open.
+
+Two follow-up findings surfaced *during* remediation slices remain open, tracked separately —
+they were never part of the original 81 and are lower priority/narrower blast-radius:
+- **#220** certificates — staff cannot actually access other users' certificates despite
+  `IsCertificateOwner`'s docstring (surfaced during #38).
+- **#223** courses — unfiltered course lookup in a permission check can enumerate unpublished
+  courses of other instructors (surfaced during #122).
+
+Next step: ask Bruno whether to schedule #220/#223 as a new mini-cycle or leave them for later —
+there is no more `/audit-status`-driven backlog from the original audit to work through.
 
 ## Working agreement (per project rules)
 
