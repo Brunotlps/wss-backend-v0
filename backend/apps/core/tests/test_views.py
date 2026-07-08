@@ -111,3 +111,37 @@ class TestReadinessCheck:
         body = str(response.data)
         assert "Traceback" not in body
         assert "db down" not in body
+
+
+@pytest.mark.django_db
+class TestReadinessCheckBehindSSLRedirect:
+    """Locks in the contract the Docker healthcheck (#151) depends on.
+
+    Production forces SECURE_SSL_REDIRECT, so any internal caller (like the
+    container healthcheck) that hits the app over plain HTTP without a
+    forwarded-proto header gets a 301 from SecurityMiddleware before the view
+    ever runs — a "false healthy" that never exercises DB/cache. The
+    healthcheck must send X-Forwarded-Proto: https to actually probe
+    readiness.
+    """
+
+    URL = "/api/health/ready/"
+
+    @pytest.fixture(autouse=True)
+    def _force_ssl_redirect(self, settings):
+        """Simulate production's SSL-redirect settings (off by default in tests)."""
+        settings.SECURE_SSL_REDIRECT = True
+        settings.SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+    def test_redirects_without_forwarded_proto_header(self, api_client):
+        """No header -> 301, the exact failure mode #151 reported."""
+        response = api_client.get(self.URL)
+        assert response.status_code == status.HTTP_301_MOVED_PERMANENTLY
+
+    def test_returns_200_with_forwarded_proto_header(self, api_client):
+        """With the header, SecurityMiddleware treats the request as secure
+        and the readiness view actually runs.
+        """
+        response = api_client.get(self.URL, HTTP_X_FORWARDED_PROTO="https")
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["status"] == "ready"
