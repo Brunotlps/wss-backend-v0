@@ -57,11 +57,19 @@ while Course.objects.filter(slug=slug).exclude(pk=self.pk).exists():
 self.slug = slug
 ```
 
-### Validator i18n + missing separators — #62 (videos, Minor, has a real text bug) — ⬜ OPEN
-`_("...type. ") + _("Make sure...")` — add the missing space; use `%(x)s` not `_(f"...")`.
+### Validator i18n + missing separators — #62 (videos, Minor) ✅ FIXED (PR #226, 2026-07-07)
+Replaced `_(f"...")` with static translatable templates + `ValidationError(params=...)` in all
+three validators; fixed the two missing separators. Unexpected: changing `FileExtensionValidator
+.message` changed the field's migration state → metadata-only migration `videos/0007_alter_video_
+file` (`sqlmigrate` confirmed no-op).
 
-### Misc — #24 (payments admin: `status` editable on financial record → make read-only or audit) — ⬜ OPEN,
-#85 (certificates: drop redundant index on `certificate_code`; `timezone.now()` not naive `today()`) — ✅ FIXED (PR #218, 2026-07-06).
+### Misc — #24 (payments admin: `status` editable on financial record) ✅ FIXED (PR #228, 2026-07-07)
+Added `status` to `PaymentAdmin.readonly_fields`. Confirmed `Payment.status` is driven exclusively
+by the Stripe webhook lifecycle (`services.py`); no code/runbook relies on manual admin edits.
+No migration (admin-only config change).
+
+#85 (certificates: drop redundant index on `certificate_code`; `timezone.now()` not naive
+`today()`) — ✅ FIXED (PR #218, 2026-07-06).
 
 ### `on_delete=CASCADE` on Certificate.enrollment — #38 (certificates, Minor) ✅ FIXED (PR #221, 2026-07-06)
 Changed to `SET_NULL` + `null=True` (migration `0009`). Fixed the 3 call sites that bypassed the
@@ -79,4 +87,8 @@ already issued is not retroactively revoked. See `04-permissions.md`.
 - [x] Deleting an enrollment no longer deletes the certificate (FK `SET_NULL`/`PROTECT`). — #38.
 - [x] Codes are `secrets`-based, ≥12 secret chars, collision-safe. — #75.
 - [x] Slug collisions return 400; money fields use `Decimal` end-to-end (see `06` #14). — #68 + #14.
+- [x] Validator messages use `%(x)s`/`params=` substitution, not eager f-strings; no missing
+      separators. — #62.
+- [x] Financial record fields driven by an external system of record (Stripe) are read-only in
+      the admin. — #24.
 - [x] Migrations reviewed (project rule: ask before makemigrations). — followed consistently across all slices.

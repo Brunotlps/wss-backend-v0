@@ -111,15 +111,23 @@ Phase 3 — Hardening & hygiene
   — unfiltered course lookup can enumerate unpublished courses). Docs:
   `.claude/context/backlog/2026-07-06-*.md`.
 
-- **Remaining — Minor (6) of the original 2026-06 audit, no Major left open.** #62 videos **bug**
-  (f-string inside `_()` gettext breaks i18n, `validators.py:56/98/110`; + 2 messages missing a
-  separator) · #24 payments (admin allows silent Payment `status` edits) · #151 infra (healthcheck
-  301) · #180 enrollments (123-char f-string) · #183 infra (venv shebangs).
-  - **Counts:** Blocking 0/18 · Major 0/42 open · Minor 6/36 open (+ 2 new follow-ups #220/#223
+- **2026-07-07 slice: #62 ✅ FIXED, deployed, validated in prod** (PR #226, doc PR #227). Videos
+  validator i18n bug (f-string in `gettext`) + 2 missing separators fixed via `%(x)s` + `params=`
+  substitution. Surfaced an unexpected metadata-only migration (`videos/0007_alter_video_file`,
+  `sqlmigrate`-confirmed no-op) because changing a `FileExtensionValidator.message` changes the
+  field's migration state.
+
+- **2026-07-07 slice: #24 ✅ FIXED, deployed, validated in prod** (PR #228). `Payment.status` added
+  to `PaymentAdmin.readonly_fields` — confirmed via grep that no code/runbook relies on manual
+  status edits (Stripe webhook lifecycle in `services.py` is the sole source of truth). No
+  migration (admin-only config).
+
+- **Remaining — Minor (3) of the original 2026-06 audit, no Major left open.** #151 infra
+  (healthcheck 301) · #180 enrollments (123-char f-string) · #183 infra (venv shebangs).
+  - **Counts:** Blocking 0/18 · Major 0/42 open · Minor 4/38 open (+ 2 new follow-ups #220/#223
     filed during the 2026-07-06 slices, tracked separately from the original audit's count). Run
-    `/audit-status` and recommend per severity/layer — remaining items mix a mechanical bug (#62),
-    a small admin-hardening item (#24), mechanical style fixes (#180/#183), and an infra fix
-    (#151).
+    `/audit-status` and recommend per severity/layer — remaining items are mechanical style fixes
+    (#180/#183) and an infra fix (#151).
 
 ## Working agreement (per project rules)
 
