@@ -456,6 +456,59 @@ class TestModuleViewSet:
         response = instructor_client.patch(f"{self.URL}{module.pk}/", {"title": "Hack"})
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
+    def test_update_module_cannot_reassign_to_unowned_course(self, instructor_client):
+        """Owner cannot PATCH ``course`` to reassign their module into a
+        course they don't own (#237) — same authz rule as create (#223):
+        denies with 403 regardless of whether the target course is
+        published or hidden, and the reassignment must not actually happen.
+        """
+        own_course = CourseFactory(instructor=instructor_client.user)
+        module = ModuleFactory(course=own_course, order=1)
+        other_course = CourseFactory()  # different instructor
+
+        response = instructor_client.patch(
+            f"{self.URL}{module.pk}/", {"course": other_course.pk}
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        module.refresh_from_db()
+        assert module.course_id == own_course.pk
+
+    def test_update_module_cannot_reassign_to_hidden_course(self, instructor_client):
+        """Same as above, but the target course is unpublished (#237):
+        must deny identically (403), not leak its existence via a
+        different status code, and must not reassign the module.
+        """
+        own_course = CourseFactory(instructor=instructor_client.user)
+        module = ModuleFactory(course=own_course, order=1)
+        hidden_course = CourseFactory(is_published=False)  # different instructor
+
+        response = instructor_client.patch(
+            f"{self.URL}{module.pk}/", {"course": hidden_course.pk}
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        module.refresh_from_db()
+        assert module.course_id == own_course.pk
+
+    def test_put_module_cannot_reassign_to_unowned_course(self, instructor_client):
+        """Same protection on a full PUT, not just PATCH (#237) —
+        ``has_object_permission`` doesn't distinguish HTTP method, only
+        whether ``course`` is present in the payload.
+        """
+        own_course = CourseFactory(instructor=instructor_client.user)
+        module = ModuleFactory(course=own_course, order=1, title="Mine")
+        other_course = CourseFactory()  # different instructor
+
+        response = instructor_client.put(
+            f"{self.URL}{module.pk}/",
+            {"course": other_course.pk, "title": "Mine", "order": 1},
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        module.refresh_from_db()
+        assert module.course_id == own_course.pk
+
     def test_delete_module_as_owner(self, instructor_client):
         """Course instructor can delete their module."""
         course = CourseFactory(instructor=instructor_client.user)
