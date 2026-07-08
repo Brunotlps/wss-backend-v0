@@ -1,9 +1,12 @@
 # Current Status
 
-**Sprint 11 concluído. Sprint 12 pausado (arquivado). Remediação da auditoria 2026-06 completa
-para Blocking (16/16) + Major (0 abertos) — restam 10 Minor.**
+**Sprint 11 concluído. Sprint 12 pausado (arquivado). Auditoria 2026-06 100% encerrada
+(2026-07-08): 81/81 findings resolvidos (Blocking 18/18, Major 42/42, Minor 36/36) + 2 follow-ups
+surgidos durante a remediação (#220, #223) + 1 follow-up de um deles (#237) — zero issues abertas
+no repositório.**
 
-> Status detalhado e por-camada da remediação: `.claude/context/audit/remediation/00-plan.md`.
+> Jornada completa arquivada em `.claude/context/tasks/archive/audit-2026-06/` (resumo executivo,
+> 8 playbooks de camada, logs de execução, e um doc por fatia de fix em `slices/`).
 
 ---
 
@@ -25,7 +28,7 @@ para Blocking (16/16) + Major (0 abertos) — restam 10 Minor.**
 
 ## Métricas
 
-- **Testes:** 578 passando, 98% cobertura
+- **Testes:** 596 passando, ~98% cobertura
 - **RAM:** ~914MB / 1.9GB (47%) + 1GB swap
 - **Disco:** ~7.2GB / 48GB (15%)
 
@@ -53,7 +56,7 @@ feita direto em `main` (não na branch `claude-edits` referenciada no plano orig
 | 11 | Deploy VPS, SSL, go-live, backup offsite (B2 + rclone), UptimeRobot | ✅ |
 | 12 | Stripe live, limpeza de dados, API production-ready | ⏸️ Pausado (arquivado) |
 | — | Server optimization: bot blocking, memory limits, swap, log rotation (2026-05-26) | ✅ |
-| — | Auditoria 2026-06 — remediação Blocking+Major (81→98 achados com follow-ups) | ✅ (0 Major abertos, 10 Minor restantes) |
+| — | Auditoria 2026-06 — remediação completa (81 achados + 3 follow-ups) | ✅ 100% fechada (0 abertas) |
 
 > Detalhes por sprint em `.claude/context/tasks/archive/`
 

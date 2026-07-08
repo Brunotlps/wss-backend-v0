@@ -71,7 +71,7 @@ Phase 3 — Hardening & hygiene
     done** (wss-frontend PR #9 → main → Vercel; live Google login confirmed 2026-06-29).
 - **Phase 3 (hardening & hygiene) — `07-tests` + `08-lint-style` DONE (2026-07-04):**
   - **`07-tests`: DONE (2026-06-30, test-only).** #82 (PR #161), #50 (#163), #17 (#165), #34/#35 (#167),
-    #86 (#169), #72 (#171), #26 (#173). Slice docs in `.claude/context/backlog/2026-06-30-*.md`.
+    #86 (#169), #72 (#171), #26 (#173). Slice docs in `.claude/context/tasks/archive/audit-2026-06/slices/2026-06-30-*.md`.
   - **`08-lint-style`: DONE (2026-07-02~03), all 8 apps.** #92 config (PR #175) · payments #19-22 (#178) ·
     enrollments #36/#37 (#181) · courses #70/#71 (#184) · certificates #83/#84 (#186) · users #51/#52 (#188) ·
     core #89/#90 (#191) · videos #60/#61 (#193). Lint siblings (#19/#20, #36, #51, #61, #70, #83, #89) were
@@ -100,7 +100,7 @@ Phase 3 — Hardening & hygiene
     **RESOLVED as documented decision** — no bulk call site exists on `Enrollment` today
     (verified by grep); the constraint is now documented on the model docstring rather than
     building unused robustness for a hypothetical bulk write path.
-  - All fixes deployed + validated in prod. Docs: `.claude/context/backlog/2026-07-04-*.md`.
+  - All fixes deployed + validated in prod. Docs: `.claude/context/tasks/archive/audit-2026-06/slices/2026-07-04-*.md`.
 
 - **2026-07-06 slices (most-complex-first order): #155, #85, #38, #122 all ✅ FIXED, deployed,
   validated in prod.** #155 users (OAuth exchange scope + Redis-outage detection, PR #216) · #85
@@ -109,7 +109,7 @@ Phase 3 — Hardening & hygiene
   surfaced follow-up **#220** — staff can't actually access other users' certificates) · #122
   courses (module create ownership moved to permission layer, PR #224; surfaced follow-up **#223**
   — unfiltered course lookup can enumerate unpublished courses). Docs:
-  `.claude/context/backlog/2026-07-06-*.md`.
+  `.claude/context/tasks/archive/audit-2026-06/slices/2026-07-06-*.md`.
 
 - **2026-07-07 slice: #62 ✅ FIXED, deployed, validated in prod** (PR #226, doc PR #227). Videos
   validator i18n bug (f-string in `gettext`) + 2 missing separators fixed via `%(x)s` + `params=`

@@ -3,7 +3,7 @@
 **Data:** 2026-06-18
 **Branch:** `fix/users-profile-create-500`
 **PR:** #103 (squash merge → `9c847ef` em `main`)
-**Fase do plano:** Phase 1 — Blocking by theme · tema `privilege-pii` (`.claude/context/audit/remediation/00-plan.md`)
+**Fase do plano:** Phase 1 — Blocking by theme · tema `privilege-pii` (`.claude/context/tasks/archive/audit-2026-06/remediation/00-plan.md`)
 **Playbook dono:** `05-views-throttling.md`
 **Status:** mergeado; CI verde (lint + suíte PostgreSQL). **Fecha o tema privilege-pii (4/4).**
 

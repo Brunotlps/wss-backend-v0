@@ -90,7 +90,7 @@ adivinhável. Serializers ainda expunham `file` / `pdf_file` / `pdf_url` crus.
 
 ## ✅ Cycle 3 — proxy hardening (#48) — CONCLUÍDO
 **Commit:** `ae0d9ca` — `fix(users): trust Cloudflare real IP and reconcile NUM_PROXIES`
-Backlog detalhado: `.claude/context/backlog/2026-06-15-nginx-xff-num-proxies-48.md`.
+Backlog detalhado: `.claude/context/tasks/archive/audit-2026-06/slices/2026-06-15-nginx-xff-num-proxies-48.md`.
 
 ### Mudanças
 - `config/settings/base.py` — `NUM_PROXIES` default 2 → 1.

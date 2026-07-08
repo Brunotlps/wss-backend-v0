@@ -435,7 +435,7 @@ Tests: X passed in Xs"
 For the 2026-06 audit fixes, the test is the **RED step** of `/fix-issue` — write the deny/
 regression test first, watch it fail, then apply the layer fix. Canonical patterns below; the
 per-issue gaps live in
-[.claude/context/audit/remediation/07-tests.md](.claude/context/audit/remediation/07-tests.md)
+[.claude/context/tasks/archive/audit-2026-06/remediation/07-tests.md](.claude/context/tasks/archive/audit-2026-06/remediation/07-tests.md)
 (#17, #34, #50, #72, #82, #86).
 
 ### Mass-assignment ignored (#30, #39, #40)

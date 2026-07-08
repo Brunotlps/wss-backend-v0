@@ -3,7 +3,7 @@
 **Data:** 2026-06-18
 **Branch:** `fix/enrollments-cross-course-progress`
 **PR:** #105 (squash merge → `f2a7efb` em `main`)
-**Fase do plano:** Phase 1 — Blocking by theme · tema `transactional-integrity` (`.claude/context/audit/remediation/00-plan.md`)
+**Fase do plano:** Phase 1 — Blocking by theme · tema `transactional-integrity` (`.claude/context/tasks/archive/audit-2026-06/remediation/00-plan.md`)
 **Playbook dono:** `03-serializers.md` (primário) + `06-services-signals-tasks.md` (defensivo)
 **Status:** mergeado; CI verde (lint + suíte PostgreSQL).
 

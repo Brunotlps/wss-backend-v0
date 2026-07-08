@@ -30,11 +30,13 @@ App-specific files: `filters.py` (courses, videos, enrollments) ·
 
 ## Status
 
-**Sprint 11 complete. 2026-06 audit remediation complete for Blocking + Major (0 open); 10 Minor
-findings remain. Sprint 12 paused (see `.claude/context/tasks/archive/sprint-12.md`). Production
-live at https://api.nousflow.com.br**
+**Sprint 11 complete. 2026-06 audit remediation fully closed (2026-07-08): all 81 findings**
+**resolved (Blocking 18/18, Major 42/42, Minor 36/36), plus 2 follow-up findings surfaced during**
+**the work (#220, #223) and a follow-up of those (#237) — zero open issues in the repo. Full**
+**history archived at `.claude/context/tasks/archive/audit-2026-06/`. Sprint 12 paused (see**
+**`.claude/context/tasks/archive/sprint-12.md`). Production live at https://api.nousflow.com.br**
 
-- 578 tests passing, 98% coverage; CI (GitHub Actions) gates merges with a lint + migration-drift check (flake8/black/isort) and the pytest suite on PostgreSQL + Redis, coverage enforced ≥80%
+- 596 tests passing, ~98% coverage; CI (GitHub Actions) gates merges with a lint + migration-drift check (flake8/black/isort) and the pytest suite on PostgreSQL + Redis, coverage enforced ≥80%
 - All features implemented: auth (JWT + Google OAuth), courses/modules/lessons, videos, enrollments, certificates, payments
 - Celery active (certificate PDF generation)
 - Docker Compose on VPS DigitalOcean (NYC1), 1.9GB RAM, 48GB disk
@@ -89,4 +91,7 @@ python3 manage.py shell_plus
 - `.claude/rules/` — coding conventions (code-style, django-patterns, security, testing, api-conventions)
 - `.claude/agents/code-reviewer.md` — layer-by-layer code review sub-agent
 - `.claude/context/` — architecture.md, tech-stack.md, current-sprint.md
-- `.claude/context/tasks/` — backlog.md; `archive/` holds completed/paused sprints (incl. sprint-12.md) + server-optimization-2026-05-26.md
+- `.claude/context/tasks/` — backlog.md (future/unscheduled work); `archive/` holds completed/paused
+  sprints (incl. sprint-12.md) + server-optimization-2026-05-26.md +
+  `audit-2026-06/` (the full 2026-06 audit: executive summary, 8 layer remediation playbooks,
+  execution logs, and every per-issue slice doc under `audit-2026-06/slices/`)

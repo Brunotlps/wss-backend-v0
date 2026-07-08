@@ -2,7 +2,7 @@
 
 **Data:** 2026-06-15
 **Branch:** `fix/41-users-pii-anonymous`
-**Fase do plano:** Phase 0 — Foundations (`.claude/context/audit/remediation/00-plan.md`)
+**Fase do plano:** Phase 0 — Foundations (`.claude/context/tasks/archive/audit-2026-06/remediation/00-plan.md`)
 **Playbook dono:** `05-views-throttling.md`
 **Status:** implementado e testado; **aguardando aprovação de commit** (não commitado, não pushado).
 
