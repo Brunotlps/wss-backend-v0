@@ -401,7 +401,10 @@ class LessonProgressSerializer(serializers.ModelSerializer):
             if watched_duration > lesson.duration:
                 raise serializers.ValidationError(
                     {
-                        "watched_duration": f"Watched duration cannot exceed lesson duration of {lesson.duration} minutes."
+                        "watched_duration": (
+                            f"Watched duration cannot exceed lesson duration of "
+                            f"{lesson.duration} minutes."
+                        )
                     }
                 )
 
