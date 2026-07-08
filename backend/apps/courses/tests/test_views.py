@@ -398,11 +398,34 @@ class TestModuleViewSet:
         response = instructor_client.post(self.URL, payload)
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
-    def test_create_module_nonexistent_course_returns_400(self, instructor_client):
-        """A non-existent course id is a validation error (400), not 403."""
+    def test_create_module_nonexistent_course_returns_403(self, instructor_client):
+        """A non-existent course id denies with 403, not 400 (#223).
+
+        Changed from 400: a genuinely missing course and an existing but
+        invisible one (see the unpublished-course test below) must be
+        indistinguishable, otherwise the differing status code becomes an
+        oracle for enumerating other instructors' unpublished courses.
+        """
         payload = {"course": 999999, "title": "Ghost Course", "order": 1}
         response = instructor_client.post(self.URL, payload)
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_create_module_for_unpublished_other_instructor_course_returns_403(
+        self, instructor_client
+    ):
+        """An unpublished course belonging to another instructor denies with
+        the same 403 as a nonexistent course (#223), not the 400 an earlier
+        (unsafe) attempt at this fix produced by letting the request fall
+        through to the serializer — which would have let the module actually
+        be created against a course this instructor can't even see, since
+        the serializer's own `course` field validates against the
+        unfiltered manager.
+        """
+        course = CourseFactory(is_published=False)  # different instructor
+        payload = {"course": course.pk, "title": "Ghost", "order": 1}
+        response = instructor_client.post(self.URL, payload)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert not Module.objects.filter(title="Ghost").exists()
 
     def test_create_module_as_student_returns_403(self, auth_client):
         """Regular user cannot create a module."""

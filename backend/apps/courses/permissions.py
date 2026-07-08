@@ -124,9 +124,22 @@ class IsModuleCourseInstructorOrReadOnly(BasePermission):
     On ``create`` there is no object yet for ``has_object_permission`` to
     check, so ownership of the target course (from the request body) is
     resolved here instead (#122) — keeping the authz failure a 403
-    everywhere, instead of the serializer raising a 400 for it. A
-    missing/invalid ``course`` id is deliberately let through (returns
-    True) so the serializer's own field validation surfaces the 400.
+    everywhere, instead of the serializer raising a 400 for it. A missing
+    ``course`` id is let through (returns True) so the serializer's own
+    required-field validation surfaces the 400; a malformed id (wrong type)
+    is let through for the same reason (invalid-pk 400).
+
+    A ``course`` id that isn't owned by the requester denies with 403
+    regardless of *why* it isn't theirs — nonexistent, existing-but-hidden
+    (unpublished, someone else's), and existing-and-visible-but-not-theirs
+    are all treated identically (#223). Distinguishing the nonexistent and
+    hidden cases (403 vs a 400 fall-through) would let an instructor
+    enumerate the existence of other instructors' unpublished courses,
+    which they have no other way to discover. The visible-but-not-theirs
+    case (a published course owned by someone else) doesn't need that
+    protection — its existence isn't secret — but folding it into the same
+    403 keeps the rule simple and avoids two different queries to tell the
+    cases apart.
     """
 
     def has_permission(self, request, view):
@@ -145,8 +158,10 @@ class IsModuleCourseInstructorOrReadOnly(BasePermission):
                 return True
             try:
                 course = Course.objects.get(pk=course_id)
-            except (Course.DoesNotExist, ValueError, TypeError):
+            except (ValueError, TypeError):
                 return True
+            except Course.DoesNotExist:
+                return False
             return course.instructor == request.user
 
         return True
