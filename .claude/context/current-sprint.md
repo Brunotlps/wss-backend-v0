@@ -3,7 +3,14 @@
 **Sprint 11 concluído. Sprint 12 pausado (arquivado). Auditoria 2026-06 100% encerrada
 (2026-07-08): 81/81 findings resolvidos (Blocking 18/18, Major 42/42, Minor 36/36) + 2 follow-ups
 surgidos durante a remediação (#220, #223) + 1 follow-up de um deles (#237) — zero issues abertas
-no repositório.**
+daquela auditoria.**
+
+**Atualização documental 2026-07-11:** nova leitura read-only do codebase/infra local identificou
+riscos operacionais e defasagens de documentação. Eles estão registrados em `README.md`,
+`.claude/context/architecture.md`, `.claude/context/tech-stack.md` e
+`.claude/context/tasks/backlog.md`. `INFRA-MELHORIAS.md` pode existir localmente
+como contexto detalhado ignorado pelo git. Esses itens formam backlog de
+hardening; não fazem parte da auditoria 2026-06 já encerrada.
 
 > Jornada completa arquivada em `.claude/context/tasks/archive/audit-2026-06/` (resumo executivo,
 > 8 playbooks de camada, logs de execução, e um doc por fatia de fix em `slices/`).
@@ -24,13 +31,28 @@ no repositório.**
 | Swap | 1GB ativo (`/swapfile`) |
 | Docker logs | Rotação 10MB × 3 por container |
 | Nginx | Bot blocking via default_server 444 |
-| Resource limits | Backend 1GB, Celery 384MB, Beat 128MB, Redis 64MB maxmemory |
+| Resource limits | Backend 1GB, Celery 512MB, Beat 256MB, Redis 64MB maxmemory documentado como runtime config |
 
 ## Métricas
 
-- **Testes:** 596 passando, ~98% cobertura
+- **Testes:** contexto pós-auditoria registra 596 passando, ~98% cobertura; CI impõe ≥80%
 - **RAM:** ~914MB / 1.9GB (47%) + 1GB swap
 - **Disco:** ~7.2GB / 48GB (15%)
+
+## Backlog operacional aberto (coletado em 2026-07-11)
+
+| Item | Prioridade sugerida | Motivo |
+|------|---------------------|--------|
+| Corrigir `entrypoint.sh` para `createsuperuser --noinput` | 🔴 Alta | Remove interpolação insegura de secrets em Python inline |
+| Versionar scripts de backup e crontab documentado | 🔴 Alta | Backup offsite depende de automação fora do git |
+| Persistir `redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru` no compose | 🟡 Média | Evita perda de limite após recreate |
+| Reduzir porta 80 reconhecida para redirect HTTPS | 🟡 Média | Fecha serving/proxy em HTTP claro |
+| Documentar/codificar firewall real | 🟡 Média | Estado de exposição de portas não é auditável pelo repo |
+| Split requirements prod/dev + Dockerfile multi-stage/non-root | 🟡 Média | Reduz imagem e superfície de ataque |
+| Decidir/remover `celery-beat` enquanto não houver schedule | 🟢 Baixa | Evita serviço ocioso |
+| Alinhar staging Nginx com proteção de mídia de produção | 🟡 Média | Staging deve validar as mesmas garantias de segurança |
+| Adicionar `.dockerignore` no build context `backend/` | 🟢 Baixa | Evita envio acidental de artefatos locais ao Docker build |
+| Automatizar deploy ou criar `deploy.sh` | 🟢 Baixa | Reduz gotchas manuais de rebuild/recreate/reload |
 
 ## Sprint 12 — ⏸️ Pausado (arquivado 2026-07-04)
 

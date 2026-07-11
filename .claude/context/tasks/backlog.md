@@ -4,6 +4,37 @@ Itens planejados mas ainda não agendados em sprint. Cada entrada tem contexto s
 
 ---
 
+## Hardening de Infraestrutura Pós-Reconhecimento 2026-07-11
+
+**Origem:** leitura read-only do codebase/infra local em 2026-07-11, cruzando
+`README.md`, `.claude/context/*`, compose, Nginx, Dockerfile, settings e código.
+
+**Fonte detalhada:** esta entrada mantém o backlog operacional rastreado no git.
+`INFRA-MELHORIAS.md` pode existir localmente como auditoria detalhada ignorada
+pelo git, mas não deve ser a única fonte para decisões futuras.
+
+### Itens de maior prioridade
+
+1. Corrigir `backend/entrypoint.sh` para usar `createsuperuser --noinput` em vez
+   de interpolar secrets em Python inline.
+2. Versionar scripts de backup e documentar o crontab do VPS.
+3. Persistir `redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru` no
+   compose.
+4. Reduzir o server block HTTP reconhecido a redirect 301 para HTTPS.
+5. Auditar/documentar firewall real (host/cloud).
+
+### Itens de higiene/validação
+
+- Split de requirements prod/dev.
+- Dockerfile multi-stage e non-root.
+- Remover `version:` obsoleto do compose.
+- Decidir/remover `celery-beat` enquanto não houver schedule.
+- Alinhar `nginx.staging.conf` com as proteções de mídia de produção.
+- Adicionar `backend/.dockerignore`.
+- Criar `deploy.sh` ou CD controlado.
+
+---
+
 ## Upload Direto a Object Storage (R2/S3) via Presigned URL
 
 **Origem:** Sprint 13 (2026-06-01) — durante a resolução do upload de vídeos, identificada como a solução profissional definitiva. Adiada porque é uma sprint de 2-3 semanas e o bloqueio imediato foi resolvido pela Opção A (subdomínio bypass do Cloudflare).
