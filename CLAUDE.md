@@ -32,15 +32,16 @@ App-specific files: `filters.py` (courses, videos, enrollments) ·
 
 **Sprint 11 complete. 2026-06 audit remediation fully closed (2026-07-08): all 81 findings**
 **resolved (Blocking 18/18, Major 42/42, Minor 36/36), plus 2 follow-up findings surfaced during**
-**the work (#220, #223) and a follow-up of those (#237) — zero open issues in the repo. Full**
+**the work (#220, #223) and a follow-up of those (#237) — zero open issues from that audit. Full**
 **history archived at `.claude/context/tasks/archive/audit-2026-06/`. Sprint 12 paused (see**
 **`.claude/context/tasks/archive/sprint-12.md`). Production live at https://api.nousflow.com.br**
 
-- 596 tests passing, ~98% coverage; CI (GitHub Actions) gates merges with a lint + migration-drift check (flake8/black/isort) and the pytest suite on PostgreSQL + Redis, coverage enforced ≥80%
+- Context records 596 tests passing, ~98% coverage after the audit remediation; CI (GitHub Actions) gates merges with a lint + migration-drift check (flake8/black/isort) and the pytest suite on PostgreSQL + Redis, coverage enforced ≥80%
 - All features implemented: auth (JWT + Google OAuth), courses/modules/lessons, videos, enrollments, certificates, payments
 - Celery active (certificate PDF generation)
 - Docker Compose on VPS DigitalOcean (NYC1), 1.9GB RAM, 48GB disk
 - Server optimized (2026-05-26): bot blocking, memory limits, swap, log rotation
+- Fresh documentation/codebase audit on 2026-07-11 found operational hygiene risks still present in repo state; tracked summaries live in `README.md`, `.claude/context/architecture.md`, `.claude/context/tech-stack.md`, `.claude/context/current-sprint.md`, and `.claude/context/tasks/backlog.md` (`INFRA-MELHORIAS.md` may exist locally as ignored detailed context)
 
 ## Common Commands
 

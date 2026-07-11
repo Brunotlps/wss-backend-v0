@@ -1,7 +1,9 @@
 # Architecture & Design Decisions
 
 **Projeto:** WSS Backend — LMS API (NousFlow)
-**Última atualização:** 2026-05-26
+**Última atualização:** 2026-07-11
+**Fonte de verdade:** código e configuração do repositório nesta data. Docs de
+sprints antigos podem conter valores históricos.
 
 ---
 
@@ -91,12 +93,14 @@ Logout → blacklist do refresh_token
 - **Web:** Gunicorn + Nginx (reverse proxy + SSL via Let's Encrypt)
 - **Banco:** PostgreSQL 15 container (volume `postgres_data`)
 - **Mídia:** Volume Docker local `wss-backend-v0_media_volume` (migrar para S3/R2 quando disco ~70%)
-- **Celery:** worker (384MB limit) + beat (128MB limit) em containers separados
+- **Celery:** worker (512MB limit no compose atual) + beat (256MB limit, profile
+  `production`/`full`) em containers separados
 - **Backup:** pg_dump + tar do volume → Backblaze B2 via rclone (db 02h, media 03h, retenção 30 dias)
 - **Swap:** 1GB (`/swapfile`) como rede de segurança para RAM
 - **Nginx:** default server retorna 444 para requests com Host inválido (anti-bot)
 - **Docker logs:** rotação configurada (10MB × 3 por container)
-- **Redis:** maxmemory 64MB com política allkeys-lru
+- **Redis:** maxmemory 64MB com política allkeys-lru documentado como runtime
+  config; ainda não persistido no `docker-compose.yml`
 
 ---
 
@@ -107,6 +111,30 @@ Logout → blacklist do refresh_token
 - **Logs:** containers Docker (`docker compose logs -f`), rotação 10MB × 3
 - **Django logs:** `/app/logs/django.log` (RotatingFileHandler, 15MB × 10)
 - **DisallowedHost:** logado como WARNING (não ERROR) — bots bloqueados no Nginx
+
+---
+
+## Riscos Operacionais Conhecidos (auditoria documental 2026-07-11)
+
+Esses pontos foram coletados por leitura do codebase/infra local, sem alterações
+de código. Eles não reabrem a auditoria 2026-06; são backlog operacional atual.
+Resumo/priorização também aparecem em `current-sprint.md`,
+`tech-stack.md` e `tasks/backlog.md`; `INFRA-MELHORIAS.md` pode existir
+localmente como contexto detalhado ignorado pelo git.
+
+| Risco | Estado no repositório | Impacto |
+|-------|------------------------|---------|
+| Scripts de backup fora do git | Fluxo B2 documentado, mas scripts/crontab não versionados | Perda do VPS perde também a automação de backup |
+| Superuser no `entrypoint.sh` | Env vars interpoladas em Python inline | Senha com aspas quebra startup; valor malicioso pode executar código no container |
+| HTTP porta 80 | Server block reconhecido ainda serve/proxy em claro | Cloudflare mitiga host principal, mas IP direto/DNS-only ficam menos endurecidos |
+| Firewall não codificado | Sem UFW/iptables/Cloud Firewall versionado | Exposição real de portas depende do estado externo ao repo |
+| Redis maxmemory runtime | Sem `command:` persistente no compose | Restart/recreate pode remover limite de memória |
+| Dockerfile | Single-stage, root, deps dev em prod | Imagem maior e superfície de ataque maior |
+| Compose `version` | `docker-compose.yml` ainda usa `version: '3.8'` | Warning/higiene, sem impacto funcional esperado |
+| Deploy manual | CI existe, CD não; deploy depende de SSH/comandos manuais | Risco de erro humano em rebuild/recreate/reload |
+| `celery-beat` sem schedule | Serviço existe, nenhum `beat_schedule` no código | Uso de RAM/CPU sem função atual |
+| Staging Nginx divergente | Media pública e 8443 mapeado sem server SSL equivalente | Staging não testa as mesmas garantias de produção |
+| `.dockerignore` ausente | Build context `./backend` sem exclusões Docker próprias | Artefatos locais podem entrar no build context |
 
 ---
 
